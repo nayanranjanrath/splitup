@@ -1,7 +1,14 @@
+import dns from "dns";
+
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
+
+
 import express from "express";
 import router from "./routes/routeslist.js";
+import connectdb   from "./database/db.js";
 const app = express();
 app.use(express.json());
+connectdb();
 const port = 3000;
 app.use(router);
 app.get("/", (req, res) => {
