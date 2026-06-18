@@ -17,7 +17,7 @@ const storage = multer.diskStorage({
 })
 
 
-export const avatarUpload = multer({
+export const avatarUpload = async()=>{try{multer({
   storage,
   limits: {
     fileSize: 5 * 1024 * 1024
@@ -29,9 +29,12 @@ export const avatarUpload = multer({
     cb(new Error("Only images allowed"));
   }
 }
-});
+});}
+catch(err){console.log(err)}
 
-export const postUpload = multer({
+}
+
+export const postUpload = async()=>{try{{multer({
   storage,
   limits: {
     fileSize: 100 * 1024 * 1024
@@ -46,4 +49,5 @@ export const postUpload = multer({
     cb(new Error("Only images and videos allowed"));
   }
 }
-});
+});}}
+catch(err){console.log(err)}}
