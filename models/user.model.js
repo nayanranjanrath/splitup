@@ -1,7 +1,8 @@
-import {schema, model} from "mongoose"
-import { transpileModule } from "typescript"
+import {Schema, model} from "mongoose"
+import bcrypt from "bcrypt"
+import jwt from "jsonwebtoken"
 
-const userSchema = new schema({
+const userSchema = new Schema({
     profilename:{
         type:String,
         required:true,
@@ -36,7 +37,7 @@ const userSchema = new schema({
     },
    
     phoneno:{
-        type:number,
+        type:Number,
         required:true,
         unique:true,
         maxlength:10

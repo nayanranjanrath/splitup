@@ -4,7 +4,7 @@ import path from "path";
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, "../public/uploads");
+        cb(null, "./public/uploads");
     },
     filename: (req, file, cb) => {
            const uniqueName =
@@ -17,11 +17,9 @@ const storage = multer.diskStorage({
 })
 
 
-export const avatarUpload = async()=>{try{multer({
+export const avatarUpload = multer({
   storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024
-  },
+ 
   fileFilter: (req, file, cb) => {
   if (file.mimetype.startsWith("image/")) {
     cb(null, true);
@@ -29,12 +27,10 @@ export const avatarUpload = async()=>{try{multer({
     cb(new Error("Only images allowed"));
   }
 }
-});}
-catch(err){console.log(err)}
+});
 
-}
 
-export const postUpload = async()=>{try{{multer({
+export const postUpload = multer({
   storage,
   limits: {
     fileSize: 100 * 1024 * 1024
@@ -49,5 +45,4 @@ export const postUpload = async()=>{try{{multer({
     cb(new Error("Only images and videos allowed"));
   }
 }
-});}}
-catch(err){console.log(err)}}
+});

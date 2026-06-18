@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import {uploadtocloudinar} from "../utility/cloudinary.js"
 import resize   from "../utility/sharp.js";
 import usermodel from "../models/user.model.js";
-
+import fs from "fs";
 export const registeruser=async(req,res)=>{
     try{
         const {profilename,fullname,email,password,phoneno}=req.body
@@ -19,32 +19,41 @@ export const registeruser=async(req,res)=>{
             return res.status(400).json({success:false,message:"User already exists"})
         }
 
-        const avatarlocalpath = req.files?.avatar[0]?.path;
+        let avatarlocalpath = req.file?.path;
 
         if(!avatarlocalpath){
             avatarlocalpath=null
         }
         console.log("avatarlocalpath",avatarlocalpath)
-        const resizedavatarpath = await resize(avatarlocalpath)
+        let resizedavatarpath = await resize(avatarlocalpath)
         console.log("resizedavatarpath",resizedavatarpath)
         if(!resizedavatarpath){
             return res.status(500).json({success:false,message:"Error resizing file"})
         }
 
+
+
+
+    
         const cloudinaryresult = await uploadtocloudinar(resizedavatarpath)
         console.log("cloudinaryresult",cloudinaryresult)
         if(!cloudinaryresult){
             return res.status(500).json({success:false,message:"Error uploading file to cloudinary"})
         }
 
-        const user = await usermodel.create({profilename,fullname:fullname?.trim()||null,email,password,avatar:cloudinaryresult?.url||null,phoneno})
+        const user = await usermodel.create({profilename,fullname:fullname?.trim(),email,password,avatar:cloudinaryresult?.url||null,phoneno})
         console.log("user",user)
+         if (fs.existsSync(avatarlocalpath)) {
+            fs.unlinkSync(avatarlocalpath);
+        }
         return res.status(200).json({success:true,message:"User created successfully",user})
 
 
     }
 catch(err){
-    return res.status(500).json({success:false,message:"Internal server error"})
+    
     console.log(err)
+    return res.status(500).json({success:false,message:"Internal server error"})
+   
 }
 }
