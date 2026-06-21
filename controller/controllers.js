@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import {uploadtocloudinar} from "../utility/cloudinary.js"
 import resize   from "../utility/sharp.js";
 import usermodel from "../models/user.model.js";
+import otpmodel from "../models/otpmodel.js";
 import fs from "fs";
 export const registeruser=async(req,res)=>{
     try{
@@ -41,6 +42,8 @@ export const registeruser=async(req,res)=>{
             return res.status(500).json({success:false,message:"Error uploading file to cloudinary"})
         }
 
+
+
         const user = await usermodel.create({profilename,fullname:fullname?.trim(),email,password,avatar:cloudinaryresult?.url||null,phoneno})
         console.log("user",user)
          if (fs.existsSync(avatarlocalpath)) {
@@ -56,4 +59,9 @@ catch(err){
     return res.status(500).json({success:false,message:"Internal server error"})
    
 }
+}
+
+
+export const sendemailotp = async(req,res)=>{
+    
 }
