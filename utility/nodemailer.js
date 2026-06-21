@@ -9,10 +9,13 @@ const transporter = nodemailer.createTransport({
 });
 
 export const sendOTPEmail = async (email, otp) => {
+  console.log("reached node mailer ")
   await transporter.sendMail({
     from: process.env.EMAIL_USER,
     to: email,
     subject: "Your OTP Verification Code",
     text: `Your OTP is ${otp}. It expires in 5 minutes.`,
   });
+
+  console.log("Email sent successfully");
 };
