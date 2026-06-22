@@ -9,9 +9,10 @@ import router from "./routes/routeslist.js";
 import connectdb   from "./database/db.js";
 import cookieParser from "cookie-parser";
 
-app.use(cookieParser());
+
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 connectdb();
 const port = 3000;
 app.use(router);

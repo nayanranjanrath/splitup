@@ -62,10 +62,10 @@ userSchema.methods.ispasswordcorrect = async function(password){
 }
 
 userSchema.methods.createaccesstoken=function(){
-    return jwt.sign({_id:this._id},process.env.ACCESSTOKEN_SECRET,{expiresIn:ACCESSTOKEN_EXP})
+    return jwt.sign({_id:this._id},process.env.ACCESSTOKEN_SECRET,{expiresIn:process.env.ACCESSTOKEN_EXP})
 }
 userSchema.methods.createrefreshtoken=function(){
-    return jwt.sign({_id:this._id},process.env.REFRESHTOKEN_SECRET,{expiresIn:REFRESHTOKEN_EXP})
+    return jwt.sign({_id:this._id},process.env.REFRESHTOKEN_SECRET,{expiresIn:process.env.REFRESHTOKEN_EXP})
 }
 const usermodel = new model("user",userSchema)
 

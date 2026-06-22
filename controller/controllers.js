@@ -11,7 +11,7 @@ import { sendOTPEmail } from "../utility/nodemailer.js";
 import { secureHeapUsed } from "crypto";
 
 const generateaccessandrefreshtoken=async(user_id) => {
-    const user= usermodel.findById(user_id)
+    const user=  await usermodel.findById(user_id)
 if(!user){
     console.log("user is not found while generating accesstoken ")
 }
