@@ -3,12 +3,13 @@ import mongoose from "mongoose";
 import { uploadtocloudinar } from "../utility/cloudinary.js"
 import resize from "../utility/sharp.js";
 import usermodel from "../models/user.model.js";
-
+import jwt from "jsonwebtoken";
 import fs from "fs";
 import Redish from "ioredis";
 const redis = new Redish("redis://localhost:6379");
 import { sendOTPEmail } from "../utility/nodemailer.js";
 import { secureHeapUsed } from "crypto";
+import { Http2ServerResponse } from "http2";
 
 const generateaccessandrefreshtoken=async(user_id) => {
     const user=  await usermodel.findById(user_id)
@@ -171,4 +172,74 @@ return res.status(200).cookie("accesstoken",accesstoken,options).cookie("refresh
 
 }
 
+export const revalidateuser =async(req,res)=>{
+   try {
+     const incomingRefreshToken=req.cookies.refreshtoken
+    if(!incomingRefreshToken){
+        return res.status(401).json({success:false,message:"Unauthorized"})
+    }
+const decodeddata = jwt.verify(
+    incomingRefreshToken,
+    process.env.REFRESHTOKEN_SECRET
+);
+const user = await usermodel.findById(decodeddata._id)
+if (
+    incomingRefreshToken !==
+    user.refreshtoken
+) {
+    return res.status(401).json({
+        success: false,
+        message: "Refresh token mismatch"
+    });
+}
 
+const {  accesstoken,
+    refreshtoken}=await generateaccessandrefreshtoken(user._id)
+const options={
+    HttpOnly: true,
+    secure: true,
+    sameSite: "none",
+    }
+
+
+return res.status(200).cookie("accesstoken",accesstoken,options).cookie("refreshtoken",refreshtoken,options).json({success:true,message:"User revalidated successfully"})
+
+   } catch (error) {
+    console.log(error)
+    return res.status(500).json({success:false,message:"Internal server error"})
+   }
+}
+
+
+export const logoutuser = async(req,res)=>{
+try {
+         const incomingRefreshToken=req.cookies.refreshtoken
+    if(!incomingRefreshToken){
+        return res.status(401).json({success:false,message:"Unauthorized"})
+    }
+const decodeddata = jwt.verify(
+    incomingRefreshToken,
+    process.env.REFRESHTOKEN_SECRET
+);
+const user = await usermodel.findById(decodeddata._id)
+if (
+    incomingRefreshToken !==
+    user.refreshtoken
+) {
+    return res.status(401).json({
+        success: false,
+        message: "Refresh token mismatch"
+    });
+}
+ user.refreshtoken=undefined
+await user.save({validateBeforeSave:false})
+
+return res.status(200).clearCookie("accesstoken").clearCookie("refreshtoken").json({success:true,message:"User logged out successfully"})
+
+} catch (error) {
+    console.log(error)
+    return res.status(500).json({success:false,message:"internalserver error"})
+}
+
+
+}
