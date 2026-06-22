@@ -8,6 +8,23 @@ import fs from "fs";
 import Redish from "ioredis";
 const redis = new Redish("redis://localhost:6379");
 import { sendOTPEmail } from "../utility/nodemailer.js";
+
+const generateaccessandrefreshtoken=async(user_id) => {
+    const user= usermodel.findById(user_id)
+if(!user){
+    console.log("user is not found while generating accesstoken ")
+}
+const refreshtoken=user.createrefreshtoken()
+const accesstoken=user.createaccesstoken()
+
+user.refreshtoken=refreshtoken
+await user.save({validateBeforeSave:false})
+
+return{accesstoken,refreshtoken}
+
+}
+
+
 export const registeruser = async (req, res) => {
     try {
         const { profilename, fullname, email, password, phoneno } = req.body
@@ -125,3 +142,28 @@ catch (err) {
     console.log(err)
     return res.status(500).json({ success: false, message: "Internal server error" })
 }}
+
+export const loginuser = async (req, res) => {
+
+const {email,password}=req.body
+if(!email||!password){
+    return res.status(400).json({success:false,message:"All fields are required"})
+}
+const user=await usermodel.findOne({email})
+if(!user){
+    return res.status(400).json({success:false,message:"User not found"})
+}
+const ispasswordcorrect=await user.ispasswordcorrect(password)
+if(!ispasswordcorrect){
+    return res.status(400).json({success:false,message:"Invalid password"})
+}
+
+const {accesstoken,refreshtoken}=await generateaccessandrefreshtoken(user._id)
+
+
+return res.status(200).json({success:true,message:"User logged in successfully",user})
+
+
+}
+
+
