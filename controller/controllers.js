@@ -8,6 +8,7 @@ import fs from "fs";
 import Redish from "ioredis";
 const redis = new Redish("redis://localhost:6379");
 import { sendOTPEmail } from "../utility/nodemailer.js";
+import { secureHeapUsed } from "crypto";
 
 const generateaccessandrefreshtoken=async(user_id) => {
     const user= usermodel.findById(user_id)
@@ -159,9 +160,13 @@ if(!ispasswordcorrect){
 }
 
 const {accesstoken,refreshtoken}=await generateaccessandrefreshtoken(user._id)
+const options={
+HTMLOnly: true,
+secure: true,
+sameSite: "none",
+}
 
-
-return res.status(200).json({success:true,message:"User logged in successfully",user})
+return res.status(200).cookie("accesstoken",accesstoken,options).cookie("refreshtoken",refreshtoken,options).json({success:true,message:"User logged in successfully",user})
 
 
 }
