@@ -2,7 +2,7 @@ import dns from "dns";
 
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config()
 
 import express from "express";
 import router from "./routes/routeslist.js";
