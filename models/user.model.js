@@ -38,10 +38,20 @@ const userSchema = new Schema({
    
     phoneno:{
         type:Number,
-        required:true,
+        
         unique:true,
         maxlength:10
     },
+    upiid:{
+        type:String
+    },
+    reting:{
+        type:Number,
+        default:0
+    },
+
+
+
      createdAt:{
         type:Date,
         default:Date.now

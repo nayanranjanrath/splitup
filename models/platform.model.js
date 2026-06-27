@@ -19,9 +19,17 @@ const platformschema = new Schema({
     },    
     category: {
     type: Schema.Types.ObjectId,
-    ref: "Category",
+    ref: "categorymodel",
 required: true
 
-}
+},
+ createdAt:{
+        type:Date,
+        default:Date.now
+    },
 
     })
+
+
+    const platformmodel = new model("platform", platformschema)
+    export default platformmodel

@@ -16,7 +16,11 @@ const aplicantSchema = new Schema({
         type: String,
         enum: ["pending", "accepted", "rejected"],
         default: "pending"
-    }
+    },
+     createdAt:{
+        type:Date,
+        default:Date.now
+    },
 })
 
 

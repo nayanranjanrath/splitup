@@ -40,8 +40,11 @@ totalslots: {
 members: [{
     type: Schema.Types.ObjectId,
     ref: "usermodel"
-}]
-
+}],
+ createdAt:{
+        type:Date,
+        default:Date.now
+    },
 
 })
 
