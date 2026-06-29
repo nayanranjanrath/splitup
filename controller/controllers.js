@@ -5,11 +5,12 @@ import resize from "../utility/sharp.js";
 import usermodel from "../models/user.model.js";
 import jwt from "jsonwebtoken";
 import fs from "fs";
-import Redish from "ioredis";
-const redis = new Redish("redis://localhost:6379");
+import redis  from "../utility/redisconnection.js";
 import { sendOTPEmail } from "../utility/nodemailer.js";
-import { secureHeapUsed } from "crypto";
-import { Http2ServerResponse } from "http2";
+// import { secureHeapUsed } from "crypto";
+// import { Http2ServerResponse } from "http2";
+import platformsharerequestmodel from "../models/platformsharerequest.model.js";
+
 
 const generateaccessandrefreshtoken=async(user_id) => {
     const user=  await usermodel.findById(user_id)
@@ -26,6 +27,17 @@ return{accesstoken,refreshtoken}
 
 }
 
+const extractuserid = async(incomingRefreshToken) => {
+    
+    if(!incomingRefreshToken){
+        throw new Error("Unauthorized");
+    }
+const decodeddata = await jwt.verify(
+    incomingRefreshToken,
+    process.env.REFRESHTOKEN_SECRET
+);
+return decodeddata
+}
 
 export const registeruser = async (req, res) => {
     try {
@@ -162,7 +174,7 @@ if(!ispasswordcorrect){
 
 const {accesstoken,refreshtoken}=await generateaccessandrefreshtoken(user._id)
 const options={
-HTMLOnly: true,
+httpOnly: true,
 secure: true,
 sameSite: "none",
 }
@@ -213,11 +225,11 @@ return res.status(200).cookie("accesstoken",accesstoken,options).cookie("refresh
 
 export const logoutuser = async(req,res)=>{
 try {
-         const incomingRefreshToken=req.cookies.refreshtoken
+         const incomingRefreshToken=req.cookies.accesstoken
     if(!incomingRefreshToken){
         return res.status(401).json({success:false,message:"Unauthorized"})
     }
-const decodeddata = jwt.verify(
+const decodeddata = await jwt.verify(
     incomingRefreshToken,
     process.env.REFRESHTOKEN_SECRET
 );
@@ -243,5 +255,42 @@ return res.status(200).clearCookie("accesstoken").clearCookie("refreshtoken").js
 
 
 }
+export const platformsplitrequest = async (req, res) => {
+    try {
+        const token = req.cookies.refreshtoken;
+        const userid =extractuserid(token)
+        console.log("userid", userid)
+       
+        const user = await usermodel.findById(userid._id);
+         if (!user) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const {planname,planprice,planvalidityday,totalslots}=req.body
 
+        if(!planprice||!planvalidityday||!totalslots){
+            return res.status(400).json({success:false,message:"All fields are required"})
+        }
+        const localimagepath = req.file?.path;
+        if (!localimagepath) {
+            return res.status(400).json({ success: false, message: "Please upload a valid proof for the request" });
+        }
+        const cloudinaryimage = await uploadtocloudinar(localimagepath);
+        const platformsplitrequest = new platformsharerequestmodel({
+            planname,
+            planprice,
+            planvalidityday,
+            requister,
+            proofimage: cloudinaryimage.secure_url,
+            totalslots
+        });
+        const savedrequest = await platformsplitrequest.save();
+        return res.status(200).json({ success: true, message: "Request submitted successfully", savedrequest });
+       
+    
+
+    } catch (error) {
+         console.log(error)
+    return res.status(500).json({success:false,message:"internalserver error"})
+    }
+}
 

@@ -13,6 +13,10 @@ type: Schema.Types.ObjectId,
 ref: "usermodel"
 
 },
+proofimage:{
+    type:String,
+    required:true
+},
 planvalidityday:{
     type:Number,
     required:true,    

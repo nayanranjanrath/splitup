@@ -46,8 +46,8 @@ const userSchema = new Schema({
         type:String
     },
     reting:{
-        type:Number,
-        default:0
+       type: Schema.Types.ObjectId,
+ref: "retingmodel"
     },
 
 
