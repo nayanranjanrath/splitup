@@ -14,7 +14,7 @@ ref: "usermodel"
 
 },
 proofimage:{
-    type:String,
+    type:[String],
     required:true
 },
 planvalidityday:{
