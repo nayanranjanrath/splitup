@@ -1,6 +1,6 @@
 import sharp from "sharp";
-
-const resize = async (filePath) => {
+import path from "path";
+export const resize = async (filePath) => {
   const outputPath = `./public/uploads/resized-${Date.now()}.jpg`;
 try{
   await sharp(filePath)
@@ -16,6 +16,24 @@ try{
 }
 catch(err){
     console.log(err)
+    throw err
 }}
 
-export default resize;
+
+export const convertToJpg = async (filePath) => {
+    const outputPath = filePath.replace(path.extname(filePath), ".jpg");
+
+   try {
+     await sharp(filePath)
+        .jpeg({
+            quality: 95
+        })
+        .toFile(outputPath);
+
+    return {outputPath};
+   } catch (error) {
+    console.log(error)
+    throw error
+   }
+};
+

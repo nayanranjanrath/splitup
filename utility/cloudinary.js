@@ -22,6 +22,7 @@ try {
       fs.unlinkSync(localpath);
     }
   console.log(error)
+  throw error
 }
 }
 

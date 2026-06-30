@@ -1,11 +1,12 @@
 
 import mongoose from "mongoose";
 import { uploadtocloudinar } from "../utility/cloudinary.js"
-import resize from "../utility/sharp.js";
+import {resize,convertToJpg} from "../utility/sharp.js";
 import usermodel from "../models/user.model.js";
 import jwt from "jsonwebtoken";
 import fs from "fs";
 import redis from "../utility/redisconnection.js";
+import path from 'path';
 import { sendOTPEmail } from "../utility/nodemailer.js";
 // import { secureHeapUsed } from "crypto";
 // import { Http2ServerResponse } from "http2";
@@ -271,7 +272,9 @@ export const platformsplitrequest = async (req, res) => {
         if (!planprice || !planvalidityday || !totalslots) {
             return res.status(400).json({ success: false, message: "All fields are required" })
         }
-        const localImagePaths = req.files?.map(file => file.path) || [];
+        // const localImagePaths = req.files?.map(file => file.path) || [];
+         const localImagePaths = req.file?.path;
+        console.log("localImagePaths", localImagePaths)
 
         if (localImagePaths.length === 0) {
             return res.status(400).json({
@@ -279,23 +282,40 @@ export const platformsplitrequest = async (req, res) => {
                 message: "Please upload at least one proof image."
             });
         }
+        console.log(req.file);
+console.log(req.file.path);
+console.log(fs.existsSync(req.file.path));
+const jpgpath = await convertToJpg(req.file.path);
+console.log("jpg path =",jpgpath);
+console.log( "jpg path is a ",typeof jpgpath);
+console.log("output path is a ",typeof jpgpath.outputPath);
 
-        const imageUrls = [];
+ const result = await uploadtocloudinar(jpgpath.outputPath);
+ console.log("result", result)
+    //     const imageUrls = [];
 
-        for (const imagePath of localImagePaths) {
-            const result = await uploadtocloudinar(imagePath);
-            imageUrls.push(result.secure_url);
-        }
-        const platformsplitrequest = new platformsharerequestmodel({
-            planname,
-            planprice,
-            planvalidityday,
-            requister,
-            proofimage: imageUrls,
-            totalslots
-        });
-        const savedrequest = await platformsplitrequest.save();
-        return res.status(200).json({ success: true, message: "Request submitted successfully", savedrequest });
+    //     for (const imagePath of localImagePaths) {
+
+            
+    //         const absolutePath = path.resolve(imagePath); 
+    // console.log("Uploading absolute path:", absolutePath);
+    //         const result = await uploadtocloudinar(absolutePath);
+    //         imageUrls.push(result.secure_url);
+    //     }
+
+
+
+
+        // const platformsplitrequest = new platformsharerequestmodel({
+        //     planname,
+        //     planprice,
+        //     planvalidityday,
+        //     requister,
+        //     proofimage: imageUrls,
+        //     totalslots
+        // });
+        // const savedrequest = await platformsplitrequest.save();
+        return res.status(200).json({ success: true, message: "Request submitted successfully" });
 
 
 
