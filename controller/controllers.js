@@ -129,6 +129,8 @@ export const verifyuser = async (req, res) => {
         }
         console.log("otp verification is successfull")
         const userdata = JSON.parse(user)
+if(userdata.avatar!==null){
+    
 
         let resizedavatarpath = await resize(userdata.avatar)
         console.log("resizedavatarpath", resizedavatarpath)
@@ -143,7 +145,7 @@ export const verifyuser = async (req, res) => {
         }
 
         userdata.avatar = cloudinaryresult.url
-
+    }
         const usersave = await usermodel.create(userdata)
         console.log("user", usersave)
         await redis.del(`user:${useremail}`);
@@ -177,8 +179,9 @@ export const loginuser = async (req, res) => {
     const { accesstoken, refreshtoken } = await generateaccessandrefreshtoken(user._id)
     const options = {
         httpOnly: true,
-        secure: true,
+        secure: false,
         sameSite: "none",
+        maxAge: 10 * 24 * 60 * 60 * 1000 ,
     }
 
     return res.status(200).cookie("accesstoken", accesstoken, options).cookie("refreshtoken", refreshtoken, options).json({ success: true, message: "User logged in successfully", user })
@@ -213,6 +216,7 @@ export const revalidateuser = async (req, res) => {
             HttpOnly: true,
             secure: true,
             sameSite: "none",
+            maxAge: 10 * 24 * 60 * 60 * 1000 ,
         }
 
 
@@ -272,9 +276,8 @@ export const platformsplitrequest = async (req, res) => {
         if (!planprice || !planvalidityday || !totalslots) {
             return res.status(400).json({ success: false, message: "All fields are required" })
         }
-        // const localImagePaths = req.files?.map(file => file.path) || [];
-         const localImagePaths = req.file?.path;
-        console.log("localImagePaths", localImagePaths)
+        const localImagePaths = req.files?.map(file => file.path) || [];
+       
 
         if (localImagePaths.length === 0) {
             return res.status(400).json({
@@ -282,48 +285,56 @@ export const platformsplitrequest = async (req, res) => {
                 message: "Please upload at least one proof image."
             });
         }
-        console.log(req.file);
-console.log(req.file.path);
-console.log(fs.existsSync(req.file.path));
-const jpgpath = await convertToJpg(req.file.path);
-console.log("jpg path =",jpgpath);
-console.log( "jpg path is a ",typeof jpgpath);
-console.log("output path is a ",typeof jpgpath.outputPath);
+  
+// const jpgpath = await convertToJpg(req.file.path);
+// console.log("jpg path =",jpgpath);
+// console.log( "jpg path is a ",typeof jpgpath);
+// console.log("output path is a ",typeof jpgpath.outputPath);
 
- const result = await uploadtocloudinar(jpgpath.outputPath);
- console.log("result", result)
-    //     const imageUrls = [];
+//  const result = await uploadtocloudinar(jpgpath.outputPath);
+//  console.log("result", result)
+        const imageUrls = []; 
 
-    //     for (const imagePath of localImagePaths) {
+//         for (const imagePath of localImagePaths) {
+// const jpgpath = await convertToJpg(imagePath);
 
-            
-    //         const absolutePath = path.resolve(imagePath); 
-    // console.log("Uploading absolute path:", absolutePath);
-    //         const result = await uploadtocloudinar(absolutePath);
-    //         imageUrls.push(result.secure_url);
-    //     }
+//    console.log("jpg path =",jpgpath);
+//             // const result = await uploadtocloudinar(jpgpath.outputPath);
+//             // imageUrls.push(result.secure_url);
+//         }
+const jpgpathone =await convertToJpg(localImagePaths[0]);
+const jpgpathtwo =await convertToJpg(localImagePaths[1]);
+
+        // const resultone = await uploadtocloudinar(jpgpathone.outputPath);
+        // console.log("jpgpathtwo",jpgpathtwo);
+        // await new Promise(resolve => setTimeout(resolve, 10000));
+        // const resulttwo = await uploadtocloudinar(jpgpathtwo.outputPath);
+        const [resultone, resulttwo] = await Promise.all([
+    uploadtocloudinar(jpgpathone.outputPath),
+    uploadtocloudinar(jpgpathtwo.outputPath)
+]);
+        imageUrls.push(resultone.secure_url);
+        imageUrls.push(resulttwo.secure_url);
+       
 
 
 
-
-        // const platformsplitrequest = new platformsharerequestmodel({
-        //     planname,
-        //     planprice,
-        //     planvalidityday,
-        //     requister,
-        //     proofimage: imageUrls,
-        //     totalslots
-        // });
-        // const savedrequest = await platformsplitrequest.save();
-        return res.status(200).json({ success: true, message: "Request submitted successfully" });
+        const platformsplitrequest = new platformsharerequestmodel({
+            planname,
+            planprice,
+            planvalidityday,
+            requister:user,
+            proofimage: imageUrls,
+            totalslots
+        });
+        const savedrequest = await platformsplitrequest.save();
+        return res.status(200).json({ success: true, message: "Request submitted successfully",savedrequest });
 
 
 
     } catch (error) {
         console.log(error);
-        console.log(error.message);
-        console.log(error.response);
-        console.log(error.http_code);
+        
         return res.status(500).json({ success: false, message: "internalserver error" })
     }
 }

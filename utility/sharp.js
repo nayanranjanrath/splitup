@@ -1,5 +1,7 @@
 import sharp from "sharp";
+import fs from "fs";
 import path from "path";
+
 export const resize = async (filePath) => {
   const outputPath = `./public/uploads/resized-${Date.now()}.jpg`;
 try{
@@ -29,9 +31,10 @@ export const convertToJpg = async (filePath) => {
             quality: 95
         })
         .toFile(outputPath);
-
+fs.unlinkSync(filePath);
     return {outputPath};
    } catch (error) {
+    fs.unlinkSync(filePath);
     console.log(error)
     throw error
    }

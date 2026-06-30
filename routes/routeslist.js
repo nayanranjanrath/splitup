@@ -12,7 +12,7 @@ console.log(typeof avatarUpload);
  router.post("/login",ratelimiter,loginuser)
  router.post("/revalidateuser",ratelimiter,revalidateuser)
  router.post("/logoutuser",logoutuser)
- router.post("/platformsplit",postUpload.single("proofimages"),platformsplitrequest)
+ router.post("/platformsplit",postUpload.array("proofimages",2),platformsplitrequest)
  
 
 
