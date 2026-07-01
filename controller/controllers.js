@@ -8,8 +8,7 @@ import fs from "fs";
 import redis from "../utility/redisconnection.js";
 import path from 'path';
 import { sendOTPEmail } from "../utility/nodemailer.js";
-// import { secureHeapUsed } from "crypto";
-// import { Http2ServerResponse } from "http2";
+import platformmodel from "../models/platform.model.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 
 
@@ -286,29 +285,15 @@ export const platformsplitrequest = async (req, res) => {
             });
         }
   
-// const jpgpath = await convertToJpg(req.file.path);
-// console.log("jpg path =",jpgpath);
-// console.log( "jpg path is a ",typeof jpgpath);
-// console.log("output path is a ",typeof jpgpath.outputPath);
 
-//  const result = await uploadtocloudinar(jpgpath.outputPath);
-//  console.log("result", result)
         const imageUrls = []; 
 
-//         for (const imagePath of localImagePaths) {
-// const jpgpath = await convertToJpg(imagePath);
-
-//    console.log("jpg path =",jpgpath);
-//             // const result = await uploadtocloudinar(jpgpath.outputPath);
-//             // imageUrls.push(result.secure_url);
+// 
 //         }
 const jpgpathone =await convertToJpg(localImagePaths[0]);
 const jpgpathtwo =await convertToJpg(localImagePaths[1]);
 
-        // const resultone = await uploadtocloudinar(jpgpathone.outputPath);
-        // console.log("jpgpathtwo",jpgpathtwo);
-        // await new Promise(resolve => setTimeout(resolve, 10000));
-        // const resulttwo = await uploadtocloudinar(jpgpathtwo.outputPath);
+       
         const [resultone, resulttwo] = await Promise.all([
     uploadtocloudinar(jpgpathone.outputPath),
     uploadtocloudinar(jpgpathtwo.outputPath)
@@ -339,3 +324,36 @@ const jpgpathtwo =await convertToJpg(localImagePaths[1]);
     }
 }
 
+export const selectplatform = async (req,res) => {
+    try {   const token =req.cookies.accesstoken;
+            const requestid=req.body._id
+            const platform =req.body.platform
+            const userid =extractuserid(token)
+            const user =await usermodel.findById(userid._id)
+            if(!user){
+                return res.status(401).json({success:false,message:"Unauthorized"})
+            }
+            const request =await platformsharerequestmodel.findById(requestid)
+            if(!request){
+                return res.status(400).json({success:false,message:"Request not found"})
+            }
+            if(request.requister!==user){
+                console.log("cant edit others platform you know ")
+                return res.status(401).json({success:false,message:"Unauthorized"})
+            }
+            const platformdetails = await platformmodel.findOne({platformname:platform})
+            if(!platformdetails){
+               console.log("platform not found")
+                return res.status(400).json({success:false,message:"Platform not found please add one "})
+            }
+
+            request.platform=platform
+            await request.save()
+
+    } catch (error) {
+        console.log(error);
+        
+        return res.status(500).json({ success: false, message: "internalserver error" })}
+
+
+}

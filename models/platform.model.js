@@ -5,13 +5,11 @@ const platformschema = new Schema({
     platformname: {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        trim: true,
+        lowercase: true 
     },
-    platformurl: {
-        type: String,
-        required: true,
-        unique: true
-    },
+   
     platformdescription: {
         type: String,
         
@@ -20,7 +18,7 @@ const platformschema = new Schema({
     category: {
     type: Schema.Types.ObjectId,
     ref: "categorymodel",
-required: true
+    required: true
 
 },
  createdAt:{
