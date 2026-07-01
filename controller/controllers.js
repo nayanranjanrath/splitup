@@ -357,3 +357,36 @@ export const selectplatform = async (req,res) => {
 
 
 }
+
+export const createplatform = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token)
+        const user = await usermodel.findById(userid._id);
+        if (!user) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const { platformname, platformdescription } = req.body
+        if (!platformname  ) {
+            return res.status(400).json({ success: false, message: "platformname is required" })
+        }
+        
+
+    } catch (error) {
+        console.log(error);
+        
+        return res.status(500).json({ success: false, message: "internalserver error" })
+    }
+}
+
+export const selecttag = async (req, res) => {
+    const tags = req.body.tags
+    const platformid = req.body.platformid
+    const platform = await platformmodel.findById(platformid)
+    if (!platform) {
+        return res.status(400).json({ success: false, message: "Platform not found" })
+    }
+    platform.tags = tags
+    await platform.save()
+    return res.status(200).json({ success: true, message: "Tags updated successfully" })
+}
