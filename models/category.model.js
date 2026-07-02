@@ -8,6 +8,10 @@ const categorySchema = new Schema({
         trim: true,
         lowercase: true
     },
+    platform:[{
+        type:Schema.Types.ObjectId,
+        ref:"platformmodel"
+    }]
 
    
 })

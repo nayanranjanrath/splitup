@@ -15,12 +15,8 @@ const platformschema = new Schema({
         
                 
     },    
-    category: {
-    type: Schema.Types.ObjectId,
-    ref: "categorymodel",
-    required: true
+   
 
-},
  createdAt:{
         type:Date,
         default:Date.now

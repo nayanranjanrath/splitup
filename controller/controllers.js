@@ -10,6 +10,7 @@ import path from 'path';
 import { sendOTPEmail } from "../utility/nodemailer.js";
 import platformmodel from "../models/platform.model.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
+import categorymodle from "../models/category.model.js";
 
 
 const generateaccessandrefreshtoken = async (user_id) => {
@@ -379,14 +380,20 @@ export const createplatform = async (req, res) => {
     }
 }
 
-export const selecttag = async (req, res) => {
-    const tags = req.body.tags
+export const selectcategory = async (req, res) => {
+    const incomingcategory  = req.body.category
     const platformid = req.body.platformid
     const platform = await platformmodel.findById(platformid)
     if (!platform) {
         return res.status(400).json({ success: false, message: "Platform not found" })
     }
-    platform.tags = tags
+    const category = await categorymodle.findOne(incomingcategory)
+    if (!category) {
+        
+        return res.status(400).json({ success: false, message: "Platform not found" })
+    }
+    category.platform.push(platform);
+await category.save();
     await platform.save()
     return res.status(200).json({ success: true, message: "Tags updated successfully" })
 }
