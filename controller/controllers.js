@@ -381,7 +381,8 @@ export const createplatform = async (req, res) => {
 }
 
 export const selectcategory = async (req, res) => {
-    const incomingcategory  = req.body.category
+   try {
+     const incomingcategory  = req.body.category
     const platformid = req.body.platformid
     const platform = await platformmodel.findById(platformid)
     if (!platform) {
@@ -396,4 +397,30 @@ export const selectcategory = async (req, res) => {
 await category.save();
     await platform.save()
     return res.status(200).json({ success: true, message: "Tags updated successfully" })
+   } catch (error) {
+     console.log(error);
+        
+        return res.status(500).json({ success: false, message: "internalserver error" })
+   }
+}
+
+export const createcategory = async (req,res)=>{
+    try {
+        const categoryname = req.body.category
+        const platformid = req.body.platformid
+        const platform = await platformmodel.findById(platformid)    
+        if (!platform) {
+            return res.status(400).json({ success: false, message: "Platform not found" })
+        }
+        const category = new categorymodle({
+            categoryname,
+            platform:[platform]
+        });
+        const savedcategory = await category.save();
+        return res.status(200).json({ success: true, message: "Category created successfully", savedcategory });
+    } catch (error) {
+         console.log(error);
+        
+        return res.status(500).json({ success: false, message: "internalserver error" })
+    }
 }
