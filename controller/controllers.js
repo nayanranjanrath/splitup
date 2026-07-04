@@ -1,7 +1,7 @@
 
 import mongoose from "mongoose";
 import { uploadtocloudinar } from "../utility/cloudinary.js"
-import {resize,convertToJpg} from "../utility/sharp.js";
+import { resize, convertToJpg } from "../utility/sharp.js";
 import usermodel from "../models/user.model.js";
 import jwt from "jsonwebtoken";
 import fs from "fs";
@@ -129,23 +129,23 @@ export const verifyuser = async (req, res) => {
         }
         console.log("otp verification is successfull")
         const userdata = JSON.parse(user)
-if(userdata.avatar!==null){
-    
+        if (userdata.avatar !== null) {
 
-        let resizedavatarpath = await resize(userdata.avatar)
-        console.log("resizedavatarpath", resizedavatarpath)
-        if (!resizedavatarpath) {
-            return res.status(500).json({ success: false, message: "Error resizing file" })
-        }
-        fs.unlinkSync(userdata.avatar);
-        const cloudinaryresult = await uploadtocloudinar(resizedavatarpath)
-        console.log("cloudinaryresult", cloudinaryresult)
-        if (!cloudinaryresult) {
-            return res.status(500).json({ success: false, message: "Error uploading file to cloudinary" })
-        }
 
-        userdata.avatar = cloudinaryresult.url
-    }
+            let resizedavatarpath = await resize(userdata.avatar)
+            console.log("resizedavatarpath", resizedavatarpath)
+            if (!resizedavatarpath) {
+                return res.status(500).json({ success: false, message: "Error resizing file" })
+            }
+            fs.unlinkSync(userdata.avatar);
+            const cloudinaryresult = await uploadtocloudinar(resizedavatarpath)
+            console.log("cloudinaryresult", cloudinaryresult)
+            if (!cloudinaryresult) {
+                return res.status(500).json({ success: false, message: "Error uploading file to cloudinary" })
+            }
+
+            userdata.avatar = cloudinaryresult.url
+        }
         const usersave = await usermodel.create(userdata)
         console.log("user", usersave)
         await redis.del(`user:${useremail}`);
@@ -181,7 +181,7 @@ export const loginuser = async (req, res) => {
         httpOnly: true,
         secure: false,
         sameSite: "none",
-        maxAge: 10 * 24 * 60 * 60 * 1000 ,
+        maxAge: 10 * 24 * 60 * 60 * 1000,
     }
 
     return res.status(200).cookie("accesstoken", accesstoken, options).cookie("refreshtoken", refreshtoken, options).json({ success: true, message: "User logged in successfully", user })
@@ -216,7 +216,7 @@ export const revalidateuser = async (req, res) => {
             HttpOnly: true,
             secure: true,
             sameSite: "none",
-            maxAge: 10 * 24 * 60 * 60 * 1000 ,
+            maxAge: 10 * 24 * 60 * 60 * 1000,
         }
 
 
@@ -277,7 +277,7 @@ export const platformsplitrequest = async (req, res) => {
             return res.status(400).json({ success: false, message: "All fields are required" })
         }
         const localImagePaths = req.files?.map(file => file.path) || [];
-       
+
 
         if (localImagePaths.length === 0) {
             return res.status(400).json({
@@ -285,23 +285,23 @@ export const platformsplitrequest = async (req, res) => {
                 message: "Please upload at least one proof image."
             });
         }
-  
 
-        const imageUrls = []; 
 
-// 
-//         }
-const jpgpathone =await convertToJpg(localImagePaths[0]);
-const jpgpathtwo =await convertToJpg(localImagePaths[1]);
+        const imageUrls = [];
 
-       
+        // 
+        //         }
+        const jpgpathone = await convertToJpg(localImagePaths[0]);
+        const jpgpathtwo = await convertToJpg(localImagePaths[1]);
+
+
         const [resultone, resulttwo] = await Promise.all([
-    uploadtocloudinar(jpgpathone.outputPath),
-    uploadtocloudinar(jpgpathtwo.outputPath)
-]);
+            uploadtocloudinar(jpgpathone.outputPath),
+            uploadtocloudinar(jpgpathtwo.outputPath)
+        ]);
         imageUrls.push(resultone.secure_url);
         imageUrls.push(resulttwo.secure_url);
-       
+
 
 
 
@@ -309,52 +309,60 @@ const jpgpathtwo =await convertToJpg(localImagePaths[1]);
             planname,
             planprice,
             planvalidityday,
-            requister:user,
+            requister: user,
             proofimage: imageUrls,
             totalslots
         });
         const savedrequest = await platformsplitrequest.save();
-        return res.status(200).json({ success: true, message: "Request submitted successfully",savedrequest });
+        return res.status(200).json({ success: true, message: "Request submitted successfully", savedrequest });
 
 
 
     } catch (error) {
         console.log(error);
-        
+
         return res.status(500).json({ success: false, message: "internalserver error" })
     }
 }
 
-export const selectplatform = async (req,res) => {
-    try {   const token =req.cookies.accesstoken;
-            const requestid=req.body._id
-            const platform =req.body.platform
-            const userid =extractuserid(token)
-            const user =await usermodel.findById(userid._id)
-            if(!user){
-                return res.status(401).json({success:false,message:"Unauthorized"})
-            }
-            const request =await platformsharerequestmodel.findById(requestid)
-            if(!request){
-                return res.status(400).json({success:false,message:"Request not found"})
-            }
-            if(request.requister!==user){
-                console.log("cant edit others platform you know ")
-                return res.status(401).json({success:false,message:"Unauthorized"})
-            }
-            const platformdetails = await platformmodel.findOne({platformname:platform})
-            if(!platformdetails){
-               console.log("platform not found")
-                return res.status(400).json({success:false,message:"Platform not found please add one "})
-            }
+export const selectplatform = async (req, res) => {
+    try {
+        const requestid = req.body.requestid
+        const platformid = req.body.platformid
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token)
+        console.log("userid", userid)
 
-            request.platform=platform
-            await request.save()
+        const user = await usermodel.findById(userid._id);
+        if (!user) {
+            return res.status(401).json({ success: false, message: "Unauthorized" })
+        }
+        const request = await platformsharerequestmodel.findById(requestid)
+        if (!request) {
+            return res.status(400).json({ success: false, message: "Request not found" })
+        }
+        if (!request.requister.equals(user._id)) {
+            console.log("cant edit others platform you know ")
+            return res.status(401).json({ success: false, message: "Unauthorized" })
+        }
+        const platformdetails = await platformmodel.findById(platformid)
+        if (!platformdetails) {
+            console.log("platform not found")
+            return res.status(400).json({ success: false, message: "Platform not found please add one " })
+        }
 
+        request.platformname = platformid
+        await request.save()
+        return res.status(200).json({
+            success: true,
+            message: "Platform added successfully",
+            request
+        });
     } catch (error) {
         console.log(error);
-        
-        return res.status(500).json({ success: false, message: "internalserver error" })}
+
+        return res.status(500).json({ success: false, message: "internalserver error" })
+    }
 
 
 }
@@ -368,59 +376,64 @@ export const createplatform = async (req, res) => {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
         const { platformname, platformdescription } = req.body
-        if (!platformname  ) {
+        if (!platformname) {
             return res.status(400).json({ success: false, message: "platformname is required" })
         }
-        
+        const platform = new platformmodel({
+            platformname,
+            platformdescription,
 
+        })
+        const savedplatform = await platform.save();
+        return res.status(200).json({ success: true, message: "Platform created successfully", savedplatform });
     } catch (error) {
         console.log(error);
-        
+
         return res.status(500).json({ success: false, message: "internalserver error" })
     }
 }
 
 export const selectcategory = async (req, res) => {
-   try {
-     const incomingcategory  = req.body.category
-    const platformid = req.body.platformid
-    const platform = await platformmodel.findById(platformid)
-    if (!platform) {
-        return res.status(400).json({ success: false, message: "Platform not found" })
-    }
-    const category = await categorymodle.findOne(incomingcategory)
-    if (!category) {
+    try {
+        const incomingcategory = req.body.categoryid
+        const platformid = req.body.platformid
+        const platform = await platformmodel.findById(platformid)
+        if (!platform) {
+            return res.status(400).json({ success: false, message: "Platform not found" })
+        }
+        const category = await categorymodle.findById(incomingcategory)
+        if (!category) {
+
+            return res.status(400).json({ success: false, message: "Platform not found" })
+        }
+        category.platform.push(platform);
+        await category.save();
         
-        return res.status(400).json({ success: false, message: "Platform not found" })
-    }
-    category.platform.push(platform);
-await category.save();
-    await platform.save()
-    return res.status(200).json({ success: true, message: "Tags updated successfully" })
-   } catch (error) {
-     console.log(error);
-        
+        return res.status(200).json({ success: true, message: "Tags updated successfully" })
+    } catch (error) {
+        console.log(error);
+
         return res.status(500).json({ success: false, message: "internalserver error" })
-   }
+    }
 }
 
-export const createcategory = async (req,res)=>{
+export const createcategory = async (req, res) => {
     try {
-        const categoryname = req.body.category
+        const categoryname = req.body.categoryname
         const platformid = req.body.platformid
-        const platform = await platformmodel.findById(platformid)    
+        const platform = await platformmodel.findById(platformid)
         if (!platform) {
             return res.status(400).json({ success: false, message: "Platform not found" })
         }
         const category = new categorymodle({
-            categoryname,
-            platform:[platform]
+            categoryname: categoryname,
+            platform: [platform]
         });
         const savedcategory = await category.save();
         return res.status(200).json({ success: true, message: "Category created successfully", savedcategory });
     } catch (error) {
-         console.log(error);
-        
+        console.log(error);
+
         return res.status(500).json({ success: false, message: "internalserver error" })
     }
 }
