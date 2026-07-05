@@ -385,6 +385,7 @@ export const createplatform = async (req, res) => {
 
         })
         const savedplatform = await platform.save();
+        await redis.del("allplatform");
         return res.status(200).json({ success: true, message: "Platform created successfully", savedplatform });
     } catch (error) {
         console.log(error);
@@ -430,6 +431,7 @@ export const createcategory = async (req, res) => {
             platform: [platform]
         });
         const savedcategory = await category.save();
+        await redis.del("allcategory");
         return res.status(200).json({ success: true, message: "Category created successfully", savedcategory });
     } catch (error) {
         console.log(error);
@@ -440,13 +442,13 @@ export const createcategory = async (req, res) => {
 
 export const showallplatform = async(req,res)=>{
     try {
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token)
-        const user = await usermodel.findById(userid._id);
-        if (!user) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+        const data = await redis.get("allplatform");
+        if (data) {
+            return res.status(200).json({ success: true, message: "All platform", allplatform: JSON.parse(data) });
         }
-        const allplatform = await platformmodel.find();
+        
+        const allplatform = await platformmodel.find().select("-platformdescription -createdAt -__v").lean();
+       await redis.set("allplatform", JSON.stringify(allplatform), "EX",3600 );
         return res.status(200).json({ success: true, message: "All platform", allplatform });
     } catch (error) {
         console.log(error);
@@ -456,14 +458,28 @@ export const showallplatform = async(req,res)=>{
 
 export const showallcategory = async(req,res)=>{
     try {
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token)
-        const user = await usermodel.findById(userid._id);
-        if (!user) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+        const data = await redis.get("allcategory");
+        if (data) {
+            return res.status(200).json({ success: true, message: "All category", allcategory: JSON.parse(data) });
         }
-        const allcategory = await categorymodle.find();
+       
+        const allcategory = await categorymodle.find().select("-createdAt -__v -platform").lean();
+        await redis.set("allcategory", JSON.stringify(allcategory), "EX",3600 );
         return res.status(200).json({ success: true, message: "All category", allcategory });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "internalserver error" })
+    }
+}
+
+export const detailsofplatform = async(req,res)=>{
+    try {
+        const platformid = req.paraams
+        const platform = await platformmodel.findById(platformid)
+        if (!platform) {
+            return res.status(400).json({ success: false, message: "Platform not found" })
+        }
+        return res.status(200).json({ success: true, message: "Platform details", platform });
     } catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "internalserver error" })
