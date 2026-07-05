@@ -438,3 +438,34 @@ export const createcategory = async (req, res) => {
     }
 }
 
+export const showallplatform = async(req,res)=>{
+    try {
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token)
+        const user = await usermodel.findById(userid._id);
+        if (!user) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const allplatform = await platformmodel.find();
+        return res.status(200).json({ success: true, message: "All platform", allplatform });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "internalserver error" })
+    }
+}
+
+export const showallcategory = async(req,res)=>{
+    try {
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token)
+        const user = await usermodel.findById(userid._id);
+        if (!user) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const allcategory = await categorymodle.find();
+        return res.status(200).json({ success: true, message: "All category", allcategory });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "internalserver error" })
+    }
+}
