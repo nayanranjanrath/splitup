@@ -16,5 +16,5 @@ const retingSchema = new Schema({
 })
 
 
-const ratingmodel = new model("ratingmodel",ratingmodel)
+const ratingmodel = new model("ratingmodel",retingSchema)
 export default ratingmodel

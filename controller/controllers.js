@@ -499,13 +499,13 @@ export const showprofile = async (req, res) => {
             { $match: { _id: userid } },
             {
                 $lookup: {
-                    from: "ratingmodel",
+                    from: "ratingmodels",
                     localField: "_id",
                     foreignField: "user",
                     as: "ownrating"
                 }
             },
-            {},
+            
             {
                 $addFields: {
                     averageRating: { $avg: "$ownrating.rating" },
@@ -523,12 +523,14 @@ export const showprofile = async (req, res) => {
             },
             {
                 $project: {
+                    
                     email: 0,
                     password: 0,
                     refreshtoken: 0,
                     phoneno: 0,
                     __v: 0,
-                    createdAt: 0
+                    createdAt: 0,
+                    ownrating: 0
                 }
             }
         ])
@@ -536,6 +538,7 @@ export const showprofile = async (req, res) => {
         if (!user || user.length === 0) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
+         res.set("Cache-Control", "public, max-age=3600");
         return res.status(200).json({ success: true, message: "User profile", user: user[0] });
     } catch (error) {
         console.log(error);
