@@ -474,14 +474,24 @@ export const showallcategory = async(req,res)=>{
 
 export const detailsofplatform = async(req,res)=>{
     try {
-        const platformid = req.paraams
+        const platformid =  req.params.platformid
+         res.set("Cache-Control", "public, max-age=3600");
         const platform = await platformmodel.findById(platformid)
         if (!platform) {
             return res.status(400).json({ success: false, message: "Platform not found" })
         }
+        
         return res.status(200).json({ success: true, message: "Platform details", platform });
     } catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "internalserver error" })
+    }
+}
+
+export const showprofile = async(req,res)=>{
+    try {
+        
+    } catch (error) {
+        
     }
 }
