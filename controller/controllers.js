@@ -11,6 +11,7 @@ import { sendOTPEmail } from "../utility/nodemailer.js";
 import platformmodel from "../models/platform.model.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import categorymodle from "../models/category.model.js";
+import ratingmodel from "../models/rating.model.js";
 
 
 const generateaccessandrefreshtoken = async (user_id) => {
@@ -409,7 +410,7 @@ export const selectcategory = async (req, res) => {
         }
         category.platform.push(platform);
         await category.save();
-        
+
         return res.status(200).json({ success: true, message: "Tags updated successfully" })
     } catch (error) {
         console.log(error);
@@ -440,15 +441,15 @@ export const createcategory = async (req, res) => {
     }
 }
 
-export const showallplatform = async(req,res)=>{
+export const showallplatform = async (req, res) => {
     try {
         const data = await redis.get("allplatform");
         if (data) {
             return res.status(200).json({ success: true, message: "All platform", allplatform: JSON.parse(data) });
         }
-        
+
         const allplatform = await platformmodel.find().select("-platformdescription -createdAt -__v").lean();
-       await redis.set("allplatform", JSON.stringify(allplatform), "EX",3600 );
+        await redis.set("allplatform", JSON.stringify(allplatform), "EX", 3600);
         return res.status(200).json({ success: true, message: "All platform", allplatform });
     } catch (error) {
         console.log(error);
@@ -456,15 +457,15 @@ export const showallplatform = async(req,res)=>{
     }
 }
 
-export const showallcategory = async(req,res)=>{
+export const showallcategory = async (req, res) => {
     try {
         const data = await redis.get("allcategory");
         if (data) {
             return res.status(200).json({ success: true, message: "All category", allcategory: JSON.parse(data) });
         }
-       
+
         const allcategory = await categorymodle.find().select("-createdAt -__v -platform").lean();
-        await redis.set("allcategory", JSON.stringify(allcategory), "EX",3600 );
+        await redis.set("allcategory", JSON.stringify(allcategory), "EX", 3600);
         return res.status(200).json({ success: true, message: "All category", allcategory });
     } catch (error) {
         console.log(error);
@@ -472,15 +473,15 @@ export const showallcategory = async(req,res)=>{
     }
 }
 
-export const detailsofplatform = async(req,res)=>{
+export const detailsofplatform = async (req, res) => {
     try {
-        const platformid =  req.params.platformid
-         res.set("Cache-Control", "public, max-age=3600");
+        const platformid = req.params.platformid
+        res.set("Cache-Control", "public, max-age=3600");
         const platform = await platformmodel.findById(platformid)
         if (!platform) {
             return res.status(400).json({ success: false, message: "Platform not found" })
         }
-        
+
         return res.status(200).json({ success: true, message: "Platform details", platform });
     } catch (error) {
         console.log(error);
@@ -488,10 +489,56 @@ export const detailsofplatform = async(req,res)=>{
     }
 }
 
-export const showprofile = async(req,res)=>{
+export const showprofile = async (req, res) => {
     try {
-        
+        const userid = new mongoose.Types.ObjectId(req.params.userid);
+        if(!userid){
+            return res.status(400).json({ success: false, message: "Invalid user ID" });
+        }
+        const user = await usermodel.aggregate([
+            { $match: { _id: userid } },
+            {
+                $lookup: {
+                    from: "ratingmodel",
+                    localField: "_id",
+                    foreignField: "user",
+                    as: "ownrating"
+                }
+            },
+            {},
+            {
+                $addFields: {
+                    averageRating: { $avg: "$ownrating.rating" },
+                    totalRatings: { $size: "$ownrating" },
+
+                    memberSinceDays: {
+                        $dateDiff: {
+                            startDate: "$createdAt",
+                            endDate: "$$NOW",
+                            unit: "day"
+                        }
+                    }
+
+                }
+            },
+            {
+                $project: {
+                    email: 0,
+                    password: 0,
+                    refreshtoken: 0,
+                    phoneno: 0,
+                    __v: 0,
+                    createdAt: 0
+                }
+            }
+        ])
+
+        if (!user || user.length === 0) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        return res.status(200).json({ success: true, message: "User profile", user: user[0] });
     } catch (error) {
-        
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
     }
 }
