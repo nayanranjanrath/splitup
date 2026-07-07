@@ -287,15 +287,15 @@ export const platformsplitrequest = async (req, res) => {
             });
         }
 
-const imageUrls = await Promise.all(
-    localImagePaths.map(async (imagePath) => {
-        const { outputPath } = await convertToJpg(imagePath);
+        const imageUrls = await Promise.all(
+            localImagePaths.map(async (imagePath) => {
+                const { outputPath } = await convertToJpg(imagePath);
 
-        const result = await uploadtocloudinar(outputPath);
+                const result = await uploadtocloudinar(outputPath);
 
-        return result.secure_url;
-    })
-);
+                return result.secure_url;
+            })
+        );
         // const imageUrls = [];
 
         // // 
@@ -500,7 +500,7 @@ export const detailsofplatform = async (req, res) => {
 export const showprofile = async (req, res) => {
     try {
         const userid = new mongoose.Types.ObjectId(req.params.userid);
-        if(!userid){
+        if (!userid) {
             return res.status(400).json({ success: false, message: "Invalid user ID" });
         }
         const user = await usermodel.aggregate([
@@ -513,11 +513,11 @@ export const showprofile = async (req, res) => {
                     as: "ownrating"
                 }
             },
-            
+
             {
                 $addFields: {
                     averageRating: { $avg: "$ownrating.rating" },
-                    
+
                     totalRatings: { $size: "$ownrating" },
 
                     memberSinceDays: {
@@ -532,7 +532,7 @@ export const showprofile = async (req, res) => {
             },
             {
                 $project: {
-                    
+
                     email: 0,
                     password: 0,
                     refreshtoken: 0,
@@ -547,7 +547,7 @@ export const showprofile = async (req, res) => {
         if (!user || user.length === 0) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
-         res.set("Cache-Control", "public, max-age=3600");
+        res.set("Cache-Control", "public, max-age=3600");
         return res.status(200).json({ success: true, message: "User profile", user: user[0] });
     } catch (error) {
         console.log(error);
@@ -558,7 +558,7 @@ export const showprofile = async (req, res) => {
 export const rateuser = async (req, res) => {
     try {
         const token = req.cookies.accesstoken;
-        const { rateduserid, rating,review } = req.body;
+        const { rateduserid, rating, review } = req.body;
         if (!rateduserid || !rating) {
             return res.status(400).json({ success: false, message: "Rated user ID and rating are required" });
         }
@@ -585,17 +585,17 @@ export const rateuser = async (req, res) => {
         await newrating.save();
         return res.status(200).json({ success: true, message: "Rating added successfully" });
     } catch (error) {
-         console.log(error);
+        console.log(error);
         return res.status(500).json({ success: false, message: "internalserver error" })
-    
+
     }
 }
-    
+
 
 export const showreviews = async (req, res) => {
     try {
         const { userid } = req.params;
-      if (!userid) {
+        if (!userid) {
             return res.status(400).json({ success: false, message: "User ID is required" });
         }
         const reviews = await ratingmodel.find({ user: userid }).select("-__v -user").populate("rater", "profilename avatar");
@@ -611,8 +611,8 @@ export const showreviews = async (req, res) => {
 
 export const editrating = async (req, res) => {
     try {
-         const token = req.cookies.accesstoken;
-           const { rateduserid, rating,review } = req.body;
+        const token = req.cookies.accesstoken;
+        const { rateduserid, rating, review } = req.body;
         if (!rateduserid || !rating) {
             return res.status(400).json({ success: false, message: "Rated user ID and rating are required" });
         }
@@ -642,9 +642,92 @@ export const editrating = async (req, res) => {
     }
 }
 
-export const showrequest =async (req, res) => {
+export const showrequest = async (req, res) => {
     //use req.query  for all the fields like category minprise maxprise maxmember minmember etc and the searchtext which is the text by user 
     //use the aggregate function to match searchtext either with platform or user 
     //add a field called perpersoncost to the request which will be used to search the min and max price 
-    
+    try {
+        const { categoryid, minprice, maxprice, minmember, maxmember, searchtext } = req.query;
+        const pipeline = [];
+        if (searchtext) {
+            pipeline.push({
+                $match: {
+                    $or: [
+                        {
+                            "platform.platformname": {
+                                $regex: searchtext,
+                                $options: "i"
+                            }
+                        },
+                        {
+                            "requister.profilename": {
+                                $regex: searchtext,
+                                $options: "i"
+                            }
+                        }
+
+                    ]
+                }
+            })
+
+        }
+        if (categoryid) {
+            const category = await categorymodle.findById({ _id: categoryid }).select("-__v -createdAt");
+
+
+            pipeline.push({
+                $match: {
+                    platform: {
+                        $in: category.platform
+                    }
+                }
+            })
+        }
+        if (minprice) {
+            pipeline.push({
+                $match: {
+                    $expr: {
+                        $gte: [{$divide: ["$planprice", "$totalslots"]}, parseFloat(minprice)]
+                    }
+                }
+            })
+        }
+        if (maxprice) {
+            pipeline.push({
+                $match: {
+                    $expr: {
+                        $lte: [{$divide: ["$planprice", "$totalslots"]}, parseFloat(maxprice)]
+                    }
+                }
+            })
+        }
+        if (minmember) {
+            pipeline.push({
+                $match: {
+                    minmember: { $gte: parseFloat(minmember) }
+                }
+            })
+        }
+        if (maxmember) {
+            pipeline.push({
+                $match: {
+                    maxmember: { $lte: parseFloat(maxmember) }
+                }
+            })
+        }
+        const requests = await platformsharerequestmodel.aggregate(pipeline);
+        if (requests.length === 0) {
+            return res.status(404).json({ success: false, message: "No requests found" });
+        }
+        else {
+            return res.status(200).json({ success: true, message: "Requests found", requests });
+        }
+
+
+
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
 }
