@@ -268,10 +268,10 @@ export const platformsplitrequest = async (req, res) => {
         const userid = extractuserid(token)
         console.log("userid", userid)
 
-        const user = await usermodel.findById(userid._id);
-        if (!user) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
+        // const user = await usermodel.findById(userid._id);
+        // if (!user) {
+        //     return res.status(401).json({ success: false, message: "Unauthorized" });
+        // }
         const { planname, planprice, planvalidityday, totalslots } = req.body
 
         if (!planprice || !planvalidityday || !totalslots) {
@@ -287,21 +287,29 @@ export const platformsplitrequest = async (req, res) => {
             });
         }
 
+const imageUrls = await Promise.all(
+    localImagePaths.map(async (imagePath) => {
+        const { outputPath } = await convertToJpg(imagePath);
 
-        const imageUrls = [];
+        const result = await uploadtocloudinar(outputPath);
 
-        // 
-        //         }
-        const jpgpathone = await convertToJpg(localImagePaths[0]);
-        const jpgpathtwo = await convertToJpg(localImagePaths[1]);
+        return result.secure_url;
+    })
+);
+        // const imageUrls = [];
+
+        // // 
+        // //         }
+        // const jpgpathone = await convertToJpg(localImagePaths[0]);
+        // const jpgpathtwo = await convertToJpg(localImagePaths[1]);
 
 
-        const [resultone, resulttwo] = await Promise.all([
-            uploadtocloudinar(jpgpathone.outputPath),
-            uploadtocloudinar(jpgpathtwo.outputPath)
-        ]);
-        imageUrls.push(resultone.secure_url);
-        imageUrls.push(resulttwo.secure_url);
+        // const [resultone, resulttwo] = await Promise.all([
+        //     uploadtocloudinar(jpgpathone.outputPath),
+        //     uploadtocloudinar(jpgpathtwo.outputPath)
+        // ]);
+        // imageUrls.push(resultone.secure_url);
+        // imageUrls.push(resulttwo.secure_url);
 
 
 
@@ -310,7 +318,7 @@ export const platformsplitrequest = async (req, res) => {
             planname,
             planprice,
             planvalidityday,
-            requister: user,
+            requister: userid._id,
             proofimage: imageUrls,
             totalslots
         });
@@ -509,6 +517,7 @@ export const showprofile = async (req, res) => {
             {
                 $addFields: {
                     averageRating: { $avg: "$ownrating.rating" },
+                    
                     totalRatings: { $size: "$ownrating" },
 
                     memberSinceDays: {
@@ -544,4 +553,98 @@ export const showprofile = async (req, res) => {
         console.log(error);
         return res.status(500).json({ success: false, message: "Internal server error" });
     }
+}
+
+export const rateuser = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken;
+        const { rateduserid, rating,review } = req.body;
+        if (!rateduserid || !rating) {
+            return res.status(400).json({ success: false, message: "Rated user ID and rating are required" });
+        }
+        const userid = extractuserid(token)
+        if (!userid) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const user = await usermodel.findById(userid._id);
+        if (!user) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const rateduser = await usermodel.findById(rateduserid);
+        if (!rateduser) {
+            return res.status(404).json({ success: false, message: "Rated user not found" });
+        }
+        const existingrating = await ratingmodel.findOne({ user: rateduserid, rater: userid._id });
+        if (existingrating) {
+            // existingrating.rating = rating;
+            // existingrating.review = review 
+            // await existingrating.save();
+            return res.status(200).json({ success: true, message: "you alredy rated this user", existingrating });
+        }
+        const newrating = new ratingmodel({ user: rateduserid, rater: userid._id, rating, review });
+        await newrating.save();
+        return res.status(200).json({ success: true, message: "Rating added successfully" });
+    } catch (error) {
+         console.log(error);
+        return res.status(500).json({ success: false, message: "internalserver error" })
+    
+    }
+}
+    
+
+export const showreviews = async (req, res) => {
+    try {
+        const { userid } = req.params;
+      if (!userid) {
+            return res.status(400).json({ success: false, message: "User ID is required" });
+        }
+        const reviews = await ratingmodel.find({ user: userid }).select("-__v -user").populate("rater", "profilename avatar");
+        if (!reviews || reviews.length === 0) {
+            return res.status(404).json({ success: false, message: "No reviews found for this user" });
+        }
+        return res.status(200).json({ success: true, message: "User reviews", reviews });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export const editrating = async (req, res) => {
+    try {
+         const token = req.cookies.accesstoken;
+           const { rateduserid, rating,review } = req.body;
+        if (!rateduserid || !rating) {
+            return res.status(400).json({ success: false, message: "Rated user ID and rating are required" });
+        }
+        const userid = extractuserid(token)
+        if (!userid) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const user = await usermodel.findById(userid._id);
+        if (!user) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const rateduser = await usermodel.findById(rateduserid);
+        if (!rateduser) {
+            return res.status(404).json({ success: false, message: "Rated user not found" });
+        }
+        const existingrating = await ratingmodel.findOne({ user: rateduserid, rater: userid._id });
+        if (!existingrating) {
+            return res.status(404).json({ success: false, message: "Rating not found" });
+        }
+        existingrating.rating = rating;
+        existingrating.review = review
+        await existingrating.save();
+        return res.status(200).json({ success: true, message: "Rating updated successfully" });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export const showrequest =async (req, res) => {
+    //use req.query  for all the fields like category minprise maxprise maxmember minmember etc and the searchtext which is the text by user 
+    //use the aggregate function to match searchtext either with platform or user 
+    //add a field called perpersoncost to the request which will be used to search the min and max price 
+    
 }

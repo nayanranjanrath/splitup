@@ -77,6 +77,6 @@ userSchema.methods.createaccesstoken=function(){
 userSchema.methods.createrefreshtoken=function(){
     return jwt.sign({_id:this._id},process.env.REFRESHTOKEN_SECRET,{expiresIn:process.env.REFRESHTOKEN_EXP})
 }
-const usermodel = new model("user",userSchema)
+const usermodel = new model("usermodel",userSchema)
 
 export default usermodel
