@@ -650,7 +650,26 @@ export const showrequest = async (req, res) => {
         const { categoryid, minprice, maxprice, minmember, maxmember, searchtext } = req.query;
         const pipeline = [];
         if (searchtext) {
-            pipeline.push({
+            pipeline.push(
+                {
+    $lookup: {
+        from: "platformmodels",
+        localField: "platform",
+        foreignField: "_id",
+        as: "platform"
+    }
+
+ },
+ { $unwind: "$platform"},
+ {$lookup: {
+        from: "usermodels",
+        localField: "requister",
+        foreignField: "_id",
+        as: "requister"
+    }},
+    { $unwind: "$requister" },
+                {
+                
                 $match: {
                     $or: [
                         {
@@ -704,14 +723,14 @@ export const showrequest = async (req, res) => {
         if (minmember) {
             pipeline.push({
                 $match: {
-                    minmember: { $gte: parseFloat(minmember) }
+                    members: { $gte: parseFloat(minmember) }
                 }
             })
         }
         if (maxmember) {
             pipeline.push({
                 $match: {
-                    maxmember: { $lte: parseFloat(maxmember) }
+                    members: { $lte: parseFloat(maxmember) }
                 }
             })
         }
@@ -720,6 +739,7 @@ export const showrequest = async (req, res) => {
             return res.status(404).json({ success: false, message: "No requests found" });
         }
         else {
+             res.set("Cache-Control", "public, max-age=300");
             return res.status(200).json({ success: true, message: "Requests found", requests });
         }
 
