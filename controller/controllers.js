@@ -286,14 +286,17 @@ export const platformsplitrequest = async (req, res) => {
                 message: "Please upload at least one proof image."
             });
         }
-
+        
         const imageUrls = await Promise.all(
             localImagePaths.map(async (imagePath) => {
                 const { outputPath } = await convertToJpg(imagePath);
 
                 const result = await uploadtocloudinar(outputPath);
-
-                return result.secure_url;
+                
+                 return {
+            url: result.secure_url,
+            publicId: result.public_id
+        };
             })
         );
         // const imageUrls = [];
@@ -311,7 +314,9 @@ export const platformsplitrequest = async (req, res) => {
         // imageUrls.push(resultone.secure_url);
         // imageUrls.push(resulttwo.secure_url);
 
-
+const expiresAt = new Date(
+    Date.now() + 30 * 24 * 60 * 60 * 1000
+);
 
 
         const platformsplitrequest = new platformsharerequestmodel({
@@ -320,7 +325,8 @@ export const platformsplitrequest = async (req, res) => {
             planvalidityday,
             requister: userid._id,
             proofimage: imageUrls,
-            totalslots
+            totalslots,
+            expiresAt
         });
         const savedrequest = await platformsplitrequest.save();
         return res.status(200).json({ success: true, message: "Request submitted successfully", savedrequest });
@@ -792,6 +798,21 @@ export const showrequest = async (req, res) => {
         pipeline.push({
             $limit: limit
         });
+        pipeline.push({
+            $project: {
+                "platform.platformdescription": 0,
+                "platform.createdAt": 0,
+                "platform.__v": 0, 
+                "requister.email": 0,
+                "requister.password": 0,
+                "requister.phoneno": 0,
+                "requister.createdAt": 0,
+                "requister.__v": 0,
+                "requister.refreshtoken": 0,
+                "requister.upiid": 0,
+                "requister.fullname": 0
+            }
+        });
 
         const requests = await platformsharerequestmodel.aggregate(pipeline);
         if (requests.length === 0) {
@@ -811,3 +832,4 @@ export const showrequest = async (req, res) => {
     }
 }
 
+export const applyforrequest = async (req, res) => {}

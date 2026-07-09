@@ -8,7 +8,7 @@ import express from "express";
 import router from "./routes/routeslist.js";
 import connectdb   from "./database/db.js";
 import cookieParser from "cookie-parser";
-
+import "./utility/cron/deletecloudinary.js";
 
 const app = express();
 app.use(express.json());

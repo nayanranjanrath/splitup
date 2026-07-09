@@ -13,10 +13,19 @@ type: Schema.Types.ObjectId,
 ref: "usermodel"
 
 },
-proofimage:{
-    type:[String],
-    required:true
-},
+proofimage: [
+    {
+        url: {
+            type: String,
+            required: true
+        },
+        publicId: {
+            type: String,
+            required: true
+        }
+    }
+],
+
 planvalidityday:{
     type:Number,
     required:true,    
@@ -48,6 +57,10 @@ members: [{
  createdAt:{
         type:Date,
         default:Date.now
+    },
+     expiresAt: {
+        type: Date,
+        required: true
     },
 
 })
