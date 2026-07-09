@@ -647,32 +647,42 @@ export const showrequest = async (req, res) => {
     //use the aggregate function to match searchtext either with platform or user 
     //add a field called perpersoncost to the request which will be used to search the min and max price 
     try {
-        const { categoryid, minprice, maxprice, minmember, maxmember, searchtext, planvalidityday,slots } = req.query;
-        if(!categoryid&& !minprice && !maxprice && !minmember && !maxmember && !searchtext && !planvalidityday && !slots) {
+        const { categoryid, minprice, maxprice, minmember, maxmember, searchtext, planvalidityday, slots } = req.query;
+        if (!categoryid && !minprice && !maxprice && !minmember && !maxmember && !searchtext && !planvalidityday && !slots) {
             return res.status(400).json({ success: false, message: "At least one filter is required" });
         }
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 10;
+
+        const skip = (page - 1) * limit;
         const pipeline = [];
+        pipeline.push(
+            {
+                $lookup: {
+                    from: "platforms",
+                    localField: "platformname",
+                    foreignField: "_id",
+                    as: "platform"
+                }
+            },
+            {
+                $unwind: "$platform"
+            },
+            {
+                $lookup: {
+                    from: "usermodels",
+                    localField: "requister",
+                    foreignField: "_id",
+                    as: "requister"
+                }
+            },
+            {
+                $unwind: "$requister"
+            }
+        );
         if (searchtext) {
             pipeline.push(
-                {
-                    $lookup: {
-                        from: "platforms",
-                        localField: "platformname",
-                        foreignField: "_id",
-                        as: "platform"
-                    }
 
-                },
-                //  { $unwind: "$platform"},
-                {
-                    $lookup: {
-                        from: "usermodels",
-                        localField: "requister",
-                        foreignField: "_id",
-                        as: "requister"
-                    }
-                },
-                { $unwind: "$requister" },
                 {
 
                     $match: {
@@ -769,7 +779,20 @@ export const showrequest = async (req, res) => {
                 }
             })
         }
-       
+
+        pipeline.push({
+            $sort: {
+                createdAt: -1
+            }
+        });
+        pipeline.push({
+            $skip: skip
+        });
+
+        pipeline.push({
+            $limit: limit
+        });
+
         const requests = await platformsharerequestmodel.aggregate(pipeline);
         if (requests.length === 0) {
             return res.status(404).json({ success: false, message: "No requests found" });
@@ -787,3 +810,4 @@ export const showrequest = async (req, res) => {
         return res.status(500).json({ success: false, message: "Internal server error" });
     }
 }
+
