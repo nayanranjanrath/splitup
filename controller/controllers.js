@@ -647,56 +647,61 @@ export const showrequest = async (req, res) => {
     //use the aggregate function to match searchtext either with platform or user 
     //add a field called perpersoncost to the request which will be used to search the min and max price 
     try {
-        const { categoryid, minprice, maxprice, minmember, maxmember, searchtext } = req.query;
+        const { categoryid, minprice, maxprice, minmember, maxmember, searchtext, planvalidityday,slots } = req.query;
+        if(!categoryid&& !minprice && !maxprice && !minmember && !maxmember && !searchtext && !planvalidityday && !slots) {
+            return res.status(400).json({ success: false, message: "At least one filter is required" });
+        }
         const pipeline = [];
         if (searchtext) {
             pipeline.push(
                 {
-    $lookup: {
-        from: "platformmodels",
-        localField: "platform",
-        foreignField: "_id",
-        as: "platform"
-    }
+                    $lookup: {
+                        from: "platforms",
+                        localField: "platformname",
+                        foreignField: "_id",
+                        as: "platform"
+                    }
 
- },
- { $unwind: "$platform"},
- {$lookup: {
-        from: "usermodels",
-        localField: "requister",
-        foreignField: "_id",
-        as: "requister"
-    }},
-    { $unwind: "$requister" },
+                },
+                //  { $unwind: "$platform"},
                 {
-                
-                $match: {
-                    $or: [
-                        {
-                            "platform.platformname": {
-                                $regex: searchtext,
-                                $options: "i"
-                            }
-                        },
-                        {
-                            "requister.profilename": {
-                                $regex: searchtext,
-                                $options: "i"
-                            }
-                        }
+                    $lookup: {
+                        from: "usermodels",
+                        localField: "requister",
+                        foreignField: "_id",
+                        as: "requister"
+                    }
+                },
+                { $unwind: "$requister" },
+                {
 
-                    ]
-                }
-            })
+                    $match: {
+                        $or: [
+                            {
+                                "platform.platformname": {
+                                    $regex: searchtext,
+                                    $options: "i"
+                                }
+                            },
+                            {
+                                "requister.profilename": {
+                                    $regex: searchtext,
+                                    $options: "i"
+                                }
+                            }
+
+                        ]
+                    }
+                })
 
         }
         if (categoryid) {
-            const category = await categorymodle.findById({ _id: categoryid }).select("-__v -createdAt");
+            const category = await categorymodle.findById(categoryid).select("-__v -createdAt");
 
 
             pipeline.push({
                 $match: {
-                    platform: {
+                    platformname: {
                         $in: category.platform
                     }
                 }
@@ -706,7 +711,7 @@ export const showrequest = async (req, res) => {
             pipeline.push({
                 $match: {
                     $expr: {
-                        $gte: [{$divide: ["$planprice", "$totalslots"]}, parseFloat(minprice)]
+                        $gte: [{ $divide: ["$planprice", "$totalslots"] }, parseFloat(minprice)]
                     }
                 }
             })
@@ -715,31 +720,62 @@ export const showrequest = async (req, res) => {
             pipeline.push({
                 $match: {
                     $expr: {
-                        $lte: [{$divide: ["$planprice", "$totalslots"]}, parseFloat(maxprice)]
+                        $lte: [{ $divide: ["$planprice", "$totalslots"] }, parseFloat(maxprice)]
                     }
                 }
             })
         }
         if (minmember) {
-            pipeline.push({
-                $match: {
-                    members: { $gte: parseFloat(minmember) }
+            pipeline.push(
+                {
+                    $match: {
+                        $expr: {
+                            $gte: [
+                                {
+                                    $size: "$members"
+                                },
+                                Number(minmember)
+                            ]
+                        }
+                    }
                 }
-            })
+            )
         }
         if (maxmember) {
             pipeline.push({
                 $match: {
-                    members: { $lte: parseFloat(maxmember) }
+                    $expr: {
+                        $lte: [
+                            {
+                                $size: "$members"
+                            },
+                            Number(maxmember)
+                        ]
+                    }
                 }
             })
         }
+        if (planvalidityday) {
+            pipeline.push({
+                $match: {
+                    planvalidityday: { $gte: parseFloat(planvalidityday) }
+                }
+            })
+        }
+        if (slots) {
+            pipeline.push({
+                $match: {
+                    totalslots: { $gte: parseFloat(slots) }
+                }
+            })
+        }
+       
         const requests = await platformsharerequestmodel.aggregate(pipeline);
         if (requests.length === 0) {
             return res.status(404).json({ success: false, message: "No requests found" });
         }
         else {
-             res.set("Cache-Control", "public, max-age=300");
+            res.set("Cache-Control", "public, max-age=300");
             return res.status(200).json({ success: true, message: "Requests found", requests });
         }
 
