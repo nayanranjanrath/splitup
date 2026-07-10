@@ -330,11 +330,8 @@ export const platformsplitrequest = async (req, res) => {
             expiresAt
         });
         const savedrequest = await platformsplitrequest.save();
-        const aplicantlist = new aplicantmodel({
-            request: savedrequest._id,
-            platformname: savedrequest.platformname,
-        })
-        await aplicantlist.save();
+       
+       
         return res.status(200).json({ success: true, message: "Request submitted successfully", savedrequest });
 
 
@@ -850,20 +847,27 @@ export const applyforrequest = async (req, res) => {
         if (!request) {
             return res.status(404).json({ success: false, message: "Request not found" });
         }
+        
         if (request.members.some(member =>
             member.equals(userid._id))) {
             return res.status(400).json({ success: false, message: "You have already accepted for this request" });
         }
-        const requestaplicant = await aplicantmodel.findOne({ request: requestid, platform: request.platformname });
+        const requestaplicant = await aplicantmodel.findOne({ request: requestid, platformname: request.platformname });
         if (!requestaplicant) {
-            return res.status(400).json({ success: false, message: " no such request is there " });
+            const newaplicant = new aplicantmodel({
+                request: requestid,
+                platformname: request.platformname,
+                applicant: [userid._id]
+            });
+            await newaplicant.save();
+            return res.status(200).json({ success: true, message: "Applied for request successfully" });
         }
-        const existingaplicant = requestaplicant.aplicants.some(aplicant => aplicant.equals(userid._id));
+        const existingaplicant = requestaplicant.applicant.some(aplicant => aplicant.equals(userid._id));
         if (existingaplicant) {
             return res.status(400).json({ success: false, message: "You have already applied for this request" });
 
         }
-        requestaplicant.aplicants.push(userid._id);
+        requestaplicant.applicant.push(userid._id);
         await requestaplicant.save();
         return res.status(200).json({ success: true, message: "Applied for request successfully" });
 
