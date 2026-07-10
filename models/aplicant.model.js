@@ -1,17 +1,21 @@
 import { Schema, model } from "mongoose"
+import { platform } from "os"
 
 const aplicantSchema = new Schema({
-    requister: {
+    request: {
         type: Schema.Types.ObjectId,
         ref: "platformsharerequestmodel"
 
     },
-    applicant: {
+    applicant:[ {
         type: Schema.Types.ObjectId,
         ref: "usermodel",
         required: true
+    }],
+    platformname: {
+        type: Schema.Types.ObjectId,
+        ref: "platformmodel"
     },
-
     status: {
         type: String,
         enum: ["pending", "accepted", "rejected"],
@@ -24,6 +28,6 @@ const aplicantSchema = new Schema({
 })
 
 
-const aplicantmodel= new model("aplicant",aplicantSchema)
+const aplicantmodel= new model("aplicantmodel",aplicantSchema)
 
 export default aplicantmodel                    

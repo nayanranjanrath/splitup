@@ -2,7 +2,7 @@ import express from "express"
 import { ratelimiter } from "../middlewares/redisratelimiter.js";
 const router = express.Router();
 
-import { registeruser,verifyuser,loginuser,revalidateuser,logoutuser,platformsplitrequest,selectplatform,createplatform ,selectcategory,createcategory,showallplatform,showallcategory,detailsofplatform,showprofile,rateuser,showreviews,editrating,showrequest}  from "../controller/controllers.js";
+import { registeruser,verifyuser,loginuser,revalidateuser,logoutuser,platformsplitrequest,selectplatform,createplatform ,selectcategory,createcategory,showallplatform,showallcategory,detailsofplatform,showprofile,rateuser,showreviews,editrating,showrequest,applyforrequest}  from "../controller/controllers.js";
 import {avatarUpload,postUpload} from "../middlewares/multer.js"
 
 console.log(typeof registeruser);
@@ -20,6 +20,7 @@ console.log(typeof avatarUpload);
  router.post("/createcategory",createcategory)
  router.post("/rateuser",rateuser)
  router.post("/editrating",editrating)
+ router.post("/applyforrequest",applyforrequest)
  router.get("/showallcategory",showallcategory)
  router.get("/showallplatform",showallplatform)
  router.get("/detailsofplatform/:platformid",detailsofplatform)

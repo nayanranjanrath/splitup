@@ -9,6 +9,7 @@ import redis from "../utility/redisconnection.js";
 import path from 'path';
 import { sendOTPEmail } from "../utility/nodemailer.js";
 import platformmodel from "../models/platform.model.js";
+import aplicantmodel from "../models/aplicant.model.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import categorymodle from "../models/category.model.js";
 import ratingmodel from "../models/rating.model.js";
@@ -286,17 +287,17 @@ export const platformsplitrequest = async (req, res) => {
                 message: "Please upload at least one proof image."
             });
         }
-        
+
         const imageUrls = await Promise.all(
             localImagePaths.map(async (imagePath) => {
                 const { outputPath } = await convertToJpg(imagePath);
 
                 const result = await uploadtocloudinar(outputPath);
-                
-                 return {
-            url: result.secure_url,
-            publicId: result.public_id
-        };
+
+                return {
+                    url: result.secure_url,
+                    publicId: result.public_id
+                };
             })
         );
         // const imageUrls = [];
@@ -314,9 +315,9 @@ export const platformsplitrequest = async (req, res) => {
         // imageUrls.push(resultone.secure_url);
         // imageUrls.push(resulttwo.secure_url);
 
-const expiresAt = new Date(
-    Date.now() + 30 * 24 * 60 * 60 * 1000
-);
+        const expiresAt = new Date(
+            Date.now() + 30 * 24 * 60 * 60 * 1000
+        );
 
 
         const platformsplitrequest = new platformsharerequestmodel({
@@ -329,6 +330,11 @@ const expiresAt = new Date(
             expiresAt
         });
         const savedrequest = await platformsplitrequest.save();
+        const aplicantlist = new aplicantmodel({
+            request: savedrequest._id,
+            platformname: savedrequest.platformname,
+        })
+        await aplicantlist.save();
         return res.status(200).json({ success: true, message: "Request submitted successfully", savedrequest });
 
 
@@ -802,7 +808,7 @@ export const showrequest = async (req, res) => {
             $project: {
                 "platform.platformdescription": 0,
                 "platform.createdAt": 0,
-                "platform.__v": 0, 
+                "platform.__v": 0,
                 "requister.email": 0,
                 "requister.password": 0,
                 "requister.phoneno": 0,
@@ -832,4 +838,39 @@ export const showrequest = async (req, res) => {
     }
 }
 
-export const applyforrequest = async (req, res) => {}
+export const applyforrequest = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token);
+        if (!userid) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const { requestid } = req.body;
+        const request = await platformsharerequestmodel.findById(requestid);
+        if (!request) {
+            return res.status(404).json({ success: false, message: "Request not found" });
+        }
+        if (request.members.some(member =>
+            member.equals(userid._id))) {
+            return res.status(400).json({ success: false, message: "You have already accepted for this request" });
+        }
+        const requestaplicant = await aplicantmodel.findOne({ request: requestid, platform: request.platformname });
+        if (!requestaplicant) {
+            return res.status(400).json({ success: false, message: " no such request is there " });
+        }
+        const existingaplicant = requestaplicant.aplicants.some(aplicant => aplicant.equals(userid._id));
+        if (existingaplicant) {
+            return res.status(400).json({ success: false, message: "You have already applied for this request" });
+
+        }
+        requestaplicant.aplicants.push(userid._id);
+        await requestaplicant.save();
+        return res.status(200).json({ success: true, message: "Applied for request successfully" });
+
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+
+}
