@@ -16,11 +16,7 @@ const aplicantSchema = new Schema({
         type: Schema.Types.ObjectId,
         ref: "platformmodel"
     },
-    status: {
-        type: String,
-        enum: ["pending", "accepted", "rejected"],
-        default: "pending"
-    },
+   
      createdAt:{
         type:Date,
         default:Date.now

@@ -13,6 +13,10 @@ import aplicantmodel from "../models/aplicant.model.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import categorymodle from "../models/category.model.js";
 import ratingmodel from "../models/rating.model.js";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+
 
 
 const generateaccessandrefreshtoken = async (user_id) => {
@@ -269,10 +273,7 @@ export const platformsplitrequest = async (req, res) => {
         const userid = extractuserid(token)
         console.log("userid", userid)
 
-        // const user = await usermodel.findById(userid._id);
-        // if (!user) {
-        //     return res.status(401).json({ success: false, message: "Unauthorized" });
-        // }
+
         const { planname, planprice, planvalidityday, totalslots } = req.body
 
         if (!planprice || !planvalidityday || !totalslots) {
@@ -287,6 +288,48 @@ export const platformsplitrequest = async (req, res) => {
                 message: "Please upload at least one proof image."
             });
         }
+        //------------image check with ai stats from here --------
+        const imageToVerify = localImagePaths[0];
+        const imageBuffer = fs.readFileSync(imageToVerify);
+
+        // Determine mime type based on file extension
+        const extension = path.extname(imageToVerify).toLowerCase();
+        const mimeType = extension === '.png' ? 'image/png' :
+            (extension === '.webp' ? 'image/webp' : 'image/jpeg');
+
+        const imagePart = {
+            inlineData: {
+                data: imageBuffer.toString("base64"),
+                mimeType: mimeType
+            }
+        };
+
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        const prompt = `Analyze this proof image for a gaming or software platform sharing request. The user claims this is for the platform: "${planname}".
+    Return a JSON object containing:
+    "is_platform": boolean (Does this image clearly show authentic UI, gameplay, or account details for ${planname}?)
+    "is_ai_generated": boolean (Are there obvious AI artifacts, warped text, or fake elements?)
+    "reasoning": string (Briefly explain why it passed or failed)`;
+
+        // Force Gemini to return clean JSON so it never breaks your code
+        const aiResult = await model.generateContent({
+            contents: [{ role: "user", parts: [{ text: prompt }, imagePart] }],
+            generationConfig: { responseMimeType: "application/json" }
+        });
+        const verificationData = JSON.parse(aiResult.response.text());
+    console.log("AI Verification Result:", verificationData);
+
+    // If it fails the AI check, block the request!
+    if (!verificationData.is_platform || verificationData.is_ai_generated) {
+        
+        
+        return res.status(400).json({
+            success: false,
+            message: `Image verification failed. Reason: ${verificationData.reasoning}`
+        });
+    }
+            // -----------image check with ai ends  here --------
 
         const imageUrls = await Promise.all(
             localImagePaths.map(async (imagePath) => {
@@ -300,20 +343,6 @@ export const platformsplitrequest = async (req, res) => {
                 };
             })
         );
-        // const imageUrls = [];
-
-        // // 
-        // //         }
-        // const jpgpathone = await convertToJpg(localImagePaths[0]);
-        // const jpgpathtwo = await convertToJpg(localImagePaths[1]);
-
-
-        // const [resultone, resulttwo] = await Promise.all([
-        //     uploadtocloudinar(jpgpathone.outputPath),
-        //     uploadtocloudinar(jpgpathtwo.outputPath)
-        // ]);
-        // imageUrls.push(resultone.secure_url);
-        // imageUrls.push(resulttwo.secure_url);
 
         const expiresAt = new Date(
             Date.now() + 30 * 24 * 60 * 60 * 1000
@@ -330,8 +359,8 @@ export const platformsplitrequest = async (req, res) => {
             expiresAt
         });
         const savedrequest = await platformsplitrequest.save();
-       
-       
+
+
         return res.status(200).json({ success: true, message: "Request submitted successfully", savedrequest });
 
 
@@ -345,7 +374,7 @@ export const platformsplitrequest = async (req, res) => {
 
 export const selectplatform = async (req, res) => {
     try {
-        const requestid = req.body.requestid
+        // const requestid = req.body.requestid
         const platformid = req.body.platformid
         const token = req.cookies.accesstoken;
         const userid = extractuserid(token)
@@ -847,7 +876,7 @@ export const applyforrequest = async (req, res) => {
         if (!request) {
             return res.status(404).json({ success: false, message: "Request not found" });
         }
-        
+
         if (request.members.some(member =>
             member.equals(userid._id))) {
             return res.status(400).json({ success: false, message: "You have already accepted for this request" });
@@ -878,3 +907,113 @@ export const applyforrequest = async (req, res) => {
     }
 
 }
+
+export const showapplicants = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token);
+        if (!userid) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const { requestid } = req.params;
+        const aplicatnt = await aplicantmodel.findOne({ request: requestid }).populate("applicant", "profilename avatar reting").select("-__v -request -platformname -status -createdAt");
+        if (!aplicatnt) {
+            return res.status(404).json({ success: false, message: "No applicants found for this request" });
+        }
+        res.set("Cache-Control", "public, max-age=300");
+        return res.status(200).json({ success: true, message: "Applicants found", aplicatnt });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export const acceptapplicant = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token);
+        if (!userid) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const { requestid, aplicantid } = req.body;
+        const request = await platformsharerequestmodel.findById(requestid);
+        if (!request) {
+            return res.status(404).json({ success: false, message: "Request not found" });
+        }
+        if (request.requister.toString() !== userid._id.toString()) {
+            return res.status(401).json({ success: false, message: "Unauthorized only requester can accept applicant" });
+        }
+        const aplicant = await aplicantmodel.findOne({ request: requestid, applicant: { $in: aplicantid } });
+        if (!aplicant) {
+            return res.status(404).json({ success: false, message: "Applicant not found" });
+        }
+        console.log("members here", request.members.length + 1);
+        if (request.members.length + 1 >= request.totalslots) {
+            return res.status(400).json({ success: false, message: "Request has already reached maximum number of members" });
+        }
+        if (request.members.some(member => member.equals(aplicantid))) {
+            return res.status(400).json({ success: false, message: "Applicant is already a member of this request" });
+        }
+        request.members.push(aplicantid);
+        await request.save();
+        return res.status(200).json({ success: true, message: "Applicant accepted successfully" });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+export const showrequeststatus = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token);
+        if (!userid) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const { requestid } = req.params;
+        const request = await platformsharerequestmodel.findById(requestid);
+        if (!request) {
+            return res.status(404).json({ success: false, message: "Request not found" });
+        }
+
+        if (request.requister.toString() === userid._id.toString()) {
+            return res.status(200).json({ success: true, message: "You are the requester of this request", status: "requester" });
+        }
+
+        if (request.members.some(member => member.equals(userid._id))) {
+            return res.status(200).json({ success: true, message: "You are a member of this request", status: "accepted" });
+        }
+        return res.status(200).json({ success: true, message: "You are not a member of this request", status: "pending" });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export const removeapplicant = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token);
+        if (!userid) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const { requestid, aplicantid } = req.body;
+        const request = await platformsharerequestmodel.findById(requestid);
+        if (!request) {
+            return res.status(404).json({ success: false, message: "Request not found" });
+        }
+        if (request.requister.toString() !== userid._id.toString()) {
+            return res.status(401).json({ success: false, message: "Unauthorized only requester can remove applicant" });
+        }
+        const aplicant = await aplicantmodel.findOne({ request: requestid, applicant: { $in: aplicantid } });
+        if (!aplicant) {
+            return res.status(404).json({ success: false, message: "Applicant not found" });
+        }
+        request.members = request.members.filter(member => !member.equals(aplicantid));
+        await request.save();
+        return res.status(200).json({ success: true, message: "Applicant removed successfully" });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
