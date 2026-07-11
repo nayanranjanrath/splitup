@@ -2,7 +2,7 @@ import express from "express"
 import { ratelimiter } from "../middlewares/redisratelimiter.js";
 const router = express.Router();
 
-import { registeruser,verifyuser,loginuser,revalidateuser,logoutuser,platformsplitrequest,selectplatform,createplatform ,selectcategory,createcategory,showallplatform,showallcategory,detailsofplatform,showprofile,rateuser,showreviews,editrating,showrequest,applyforrequest,showapplicants,acceptapplicant,showrequeststatus,removeapplicant}  from "../controller/controllers.js";
+import { registeruser,verifyuser,loginuser,revalidateuser,logoutuser,platformsplitrequest,selectplatform,createplatform ,selectcategory,createcategory,showallplatform,showallcategory,detailsofplatform,showprofile,rateuser,showreviews,editrating,showrequest,applyforrequest,showapplicants,acceptapplicant,showrequeststatus,removeapplicant,reportuser}  from "../controller/controllers.js";
 import {avatarUpload,postUpload} from "../middlewares/multer.js"
 
 console.log(typeof registeruser);
@@ -31,5 +31,6 @@ console.log(typeof avatarUpload);
  router.get("/showrequeststatus/:requestid",showrequeststatus)
  router.post("/acceptapplicant",acceptapplicant)
  router.post("/removeapplicant",removeapplicant)
+ router.post("/reportuser",reportuser)
 
 export default router
