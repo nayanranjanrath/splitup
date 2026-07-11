@@ -13,7 +13,7 @@ import aplicantmodel from "../models/aplicant.model.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import categorymodle from "../models/category.model.js";
 import ratingmodel from "../models/rating.model.js";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 
@@ -272,8 +272,12 @@ export const platformsplitrequest = async (req, res) => {
         const token = req.cookies.accesstoken;
         const userid = extractuserid(token)
         console.log("userid", userid)
-
-
+        const requestid = req.body.requestid
+        const request = await platformsharerequestmodel.findById(requestid)
+        if (!request) {
+            return res.status(400).json({ success: false, message: "Request not found" })
+        }
+        const platform = request.platformname
         const { planname, planprice, planvalidityday, totalslots } = req.body
 
         if (!planprice || !planvalidityday || !totalslots) {
@@ -304,32 +308,77 @@ export const platformsplitrequest = async (req, res) => {
             }
         };
 
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
+        const verificationSchema = {
+            type: SchemaType.OBJECT,
+            properties: {
+                is_platform: {
+                    type: SchemaType.BOOLEAN,
+                    description: `Does this image clearly show authentic UI for ${platform}?`
+                },
+                is_ai_generated: {
+                    type: SchemaType.BOOLEAN,
+                    description: "Are there obvious AI artifacts, warped text, or fake elements?"
+                },
+                has_premium_proof: {
+                    type: SchemaType.BOOLEAN,
+                    description: "Does the image contain visual proof of a paid account, premium subscription, paid game library, or a transaction history? (e.g., a 'Premium' badge, games that cost money, or an active subscription page)."
+                },
+                premium_evidence: {
+                    type: SchemaType.STRING,
+                    description: "List the specific text or UI elements in the image that prove this is a paid/premium account (e.g., 'Elden Ring in library', 'Next billing date: Aug 12', or 'Steam Level 15'). If none, say 'None'."
+                },
+                reasoning: {
+                    type: SchemaType.STRING,
+                    description: "Briefly explain the final decision to pass or fail this image."
+                }
+            },
+            required: ["is_platform", "is_ai_generated", "has_premium_proof", "premium_evidence", "reasoning"],
+        };
+        const prompt = `You are a strict fraud-prevention moderator verifying account screenshots for a platform-sharing service. 
+    The user claims this screenshot proves they have an active, paid account for the platform: "${platform}".
 
-        const prompt = `Analyze this proof image for a gaming or software platform sharing request. The user claims this is for the platform: "${planname}".
-    Return a JSON object containing:
-    "is_platform": boolean (Does this image clearly show authentic UI, gameplay, or account details for ${planname}?)
-    "is_ai_generated": boolean (Are there obvious AI artifacts, warped text, or fake elements?)
-    "reasoning": string (Briefly explain why it passed or failed)`;
+    Analyze the image and determine if it meets our security criteria:
+    1. It must be a genuine screenshot of ${platform}.
+    2. It must show proof of a PAID or PREMIUM account. Free accounts are instantly rejected.
+    
+    Examples of valid proof:
+    - For Steam: Paid games in the library, a Steam Level > 0, or an account details page showing recent purchases.
+    - For Netflix/Spotify/Streaming: An account page showing "Premium", "Standard Plan", or the next billing date.
+    - For Software (Gemini/Adobe): An active subscription page showing the current plan.
+    
+    Look closely at the text, UI layout, and badges. Do not assume it is a paid account unless you see direct evidence.`;
 
         // Force Gemini to return clean JSON so it never breaks your code
         const aiResult = await model.generateContent({
             contents: [{ role: "user", parts: [{ text: prompt }, imagePart] }],
-            generationConfig: { responseMimeType: "application/json" }
+            generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: verificationSchema // <-- THIS IS THE MISSING LINE!
+            }
         });
-        const verificationData = JSON.parse(aiResult.response.text());
-    console.log("AI Verification Result:", verificationData);
+        // 1. Get the raw text from the response
+        // ... inside your try block, after generating content ...
+        const rawText = aiResult.response.text();
+        const verificationData = JSON.parse(rawText);
 
-    // If it fails the AI check, block the request!
-    if (!verificationData.is_platform || verificationData.is_ai_generated) {
-        
-        
-        return res.status(400).json({
-            success: false,
-            message: `Image verification failed. Reason: ${verificationData.reasoning}`
-        });
-    }
-            // -----------image check with ai ends  here --------
+        console.log("Moderation Result:", verificationData);
+
+        // Block if it's the wrong platform, AI generated, OR lacks premium proof
+        if (!verificationData.is_platform || verificationData.is_ai_generated || !verificationData.has_premium_proof) {
+            for (const file of localImagePaths) {
+                if (fs.existsSync(file)) {
+                    fs.unlinkSync(file);
+                }
+            }
+            // You can use the AI's reasoning to give the user a helpful error message!
+            return res.status(400).json({
+                success: false,
+                message: `Verification failed: ${verificationData.reasoning} Please ensure your screenshot clearly shows your active subscription, paid library, or premium badges.`
+            });
+        }
+
+        // -----------image check with ai ends  here --------
 
         const imageUrls = await Promise.all(
             localImagePaths.map(async (imagePath) => {
@@ -344,21 +393,20 @@ export const platformsplitrequest = async (req, res) => {
             })
         );
 
-        const expiresAt = new Date(
-            Date.now() + 30 * 24 * 60 * 60 * 1000
-        );
 
 
-        const platformsplitrequest = new platformsharerequestmodel({
-            planname,
-            planprice,
-            planvalidityday,
-            requister: userid._id,
-            proofimage: imageUrls,
-            totalslots,
-            expiresAt
-        });
-        const savedrequest = await platformsplitrequest.save();
+
+
+        request.planname = planname,
+            request.planprice = planprice,
+            request.planvalidityday = planvalidityday,
+            request.requister = userid._id,
+            request.proofimage = imageUrls,
+            request.totalslots = totalslots
+
+
+
+        const savedrequest = await request.save();
 
 
         return res.status(200).json({ success: true, message: "Request submitted successfully", savedrequest });
@@ -367,6 +415,7 @@ export const platformsplitrequest = async (req, res) => {
 
     } catch (error) {
         console.log(error);
+
 
         return res.status(500).json({ success: false, message: "internalserver error" })
     }
@@ -384,27 +433,39 @@ export const selectplatform = async (req, res) => {
         if (!user) {
             return res.status(401).json({ success: false, message: "Unauthorized" })
         }
-        const request = await platformsharerequestmodel.findById(requestid)
-        if (!request) {
-            return res.status(400).json({ success: false, message: "Request not found" })
-        }
-        if (!request.requister.equals(user._id)) {
-            console.log("cant edit others platform you know ")
-            return res.status(401).json({ success: false, message: "Unauthorized" })
-        }
+        // const request = await platformsharerequestmodel.findById(requestid)
+        // if (!request) {
+        //     return res.status(400).json({ success: false, message: "Request not found" })
+        // }
+        // if (!request.requister.equals(user._id)) {
+        //     console.log("cant edit others platform you know ")
+        //     return res.status(401).json({ success: false, message: "Unauthorized" })
+        // }
         const platformdetails = await platformmodel.findById(platformid)
         if (!platformdetails) {
             console.log("platform not found")
             return res.status(400).json({ success: false, message: "Platform not found please add one " })
         }
 
-        request.platformname = platformid
-        await request.save()
-        return res.status(200).json({
-            success: true,
-            message: "Platform added successfully",
-            request
-        });
+        const expiresAt = new Date(
+            Date.now() + 30 * 24 * 60 * 60 * 1000
+        );
+        const newrequest = new platformsharerequestmodel({
+
+            requister: userid._id,
+            platformname: platformid,
+            expiresAt: expiresAt
+        })
+        await newrequest.save({ validateBeforeSave: false });
+
+        return res.status(200).json({ success: true, message: "request added successfully", newrequest });
+        // request.platformname = platformid
+        // await request.save()
+        // return res.status(200).json({
+        //     success: true,
+        //     message: "Platform added successfully",
+        //     request
+        // });
     } catch (error) {
         console.log(error);
 
