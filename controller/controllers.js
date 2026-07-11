@@ -335,19 +335,25 @@ export const platformsplitrequest = async (req, res) => {
             },
             required: ["is_platform", "is_ai_generated", "has_premium_proof", "premium_evidence", "reasoning"],
         };
-        const prompt = `You are a strict fraud-prevention moderator verifying account screenshots for a platform-sharing service. 
+       const prompt = `You are a strict fraud-prevention moderator verifying account screenshots for a platform-sharing service. 
     The user claims this screenshot proves they have an active, paid account for the platform: "${platform}".
 
     Analyze the image and determine if it meets our security criteria:
     1. It must be a genuine screenshot of ${platform}.
-    2. It must show proof of a PAID or PREMIUM account. Free accounts are instantly rejected.
+    2. It must show proof of the HIGHEST or STANDARD premium tier. Free, budget, or "Lite" accounts are instantly rejected.
+    
+    CRITICAL TIER RULES:
+    - Many platforms offer budget tiers that do not include full shareable benefits. These MUST BE REJECTED.
+    - For Software (ChatGPT/OpenAI): Reject "Go". Accept "Plus" or "Pro".
+    - For Xbox Game Pass: Reject "Essential" or "Core". Accept "Premium" or "Ultimate".
+    - For YouTube: Reject "Premium Lite". Accept standard "Premium".
+    - Catch-All Rule: For ANY other platform, if the screenshot displays keywords like "Lite", "Basic", "Essential", "Starter", or "Go", you must reject it.
     
     Examples of valid proof:
-    - For Steam: Paid games in the library, a Steam Level > 0, or an account details page showing recent purchases.
-    - For Netflix/Spotify/Streaming: An account page showing "Premium", "Standard Plan", or the next billing date.
-    - For Software (Gemini/Adobe): An active subscription page showing the current plan.
+    - An account details page clearly stating the full premium subscription name.
+    - For gaming: Paid games in the library or a high account level.
     
-    Look closely at the text, UI layout, and badges. Do not assume it is a paid account unless you see direct evidence.`;
+    Look closely at the text, UI layout, and badges. Do not assume it is a paid, full-tier account unless you see direct evidence.`;
 
         // Force Gemini to return clean JSON so it never breaks your code
         const aiResult = await model.generateContent({
