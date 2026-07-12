@@ -19,3 +19,15 @@ export const sendOTPEmail = async (email, otp) => {
 
   console.log("Email sent successfully");
 };
+
+
+export const reportusermail = async(email,msg)=>{
+    console.log("reached node mailer ")
+    await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "Report Response",
+        text: msg,
+      });
+      console.log("Email sent successfully");
+}

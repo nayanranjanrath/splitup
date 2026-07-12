@@ -13,14 +13,16 @@ import aplicantmodel from "../models/aplicant.model.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import categorymodle from "../models/category.model.js";
 import ratingmodel from "../models/rating.model.js";
-import reportusermodel from "../models/reportuser.model.js";
+ 
+
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { report } from "process";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 
 
 
-const generateaccessandrefreshtoken = async (user_id) => {
+export const generateaccessandrefreshtoken = async (user_id) => {
     const user = await usermodel.findById(user_id)
     if (!user) {
         console.log("user is not found while generating accesstoken ")
@@ -35,7 +37,7 @@ const generateaccessandrefreshtoken = async (user_id) => {
 
 }
 
-const extractuserid = (incomingaccessToken) => {
+export const extractuserid = (incomingaccessToken) => {
 
     if (!incomingaccessToken) {
         throw new Error("Unauthorized");
@@ -1079,58 +1081,6 @@ export const removeapplicant = async (req, res) => {
         request.members = request.members.filter(member => !member.equals(aplicantid));
         await request.save();
         return res.status(200).json({ success: true, message: "Applicant removed successfully" });
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
-    }
-}
-
-export const reportuser = async(req, res) => {
-    try {
-        const token = req.cookies.accesstoken;
-        const { reporteduserid, reason } = req.body;
-        if (!reporteduserid || !reason) {
-            return res.status(400).json({ success: false, message: "Reported user ID and reason are required" });
-        }
-        const userid = extractuserid(token);
-        if (!userid) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }    
-        const reporteduser = await usermodel.findById(reporteduserid);
-        if (!reporteduser) {
-            return res.status(404).json({ success: false, message: "Reported user not found" });
-        }   
-        const report = new reportusermodel({
-            reporter: userid._id,
-            reporteduser: reporteduserid,
-            reason: reason
-        });
-        await report.save();
-        return res.status(200).json({ success: true, message: "Report submitted successfully" });
-
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
-    }
-}
-
-export const reportabug = async (req, res) => {
-    try {
-         const token = req.cookies.accesstoken;
-        const { title, description } = req.body;
-        if (!title || !description) {
-            return res.status(400).json({ success: false, message: "Title and description are required" });
-        }
-        const userid = extractuserid(token);
-        if (!userid) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
-        const report = new reportbugmodel({
-            title: title,
-            description: description
-        });
-        await report.save();
-        return res.status(200).json({ success: true, message: "Bug reported successfully" });
     } catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Internal server error" });
