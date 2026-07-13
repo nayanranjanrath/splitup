@@ -1,5 +1,5 @@
 import { Schema, model } from "mongoose"
-import { platform } from "os"
+
 
 const aplicantSchema = new Schema({
     request: {

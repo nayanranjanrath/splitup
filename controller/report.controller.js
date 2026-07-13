@@ -82,7 +82,7 @@ export const showreports = async (req, res) => {
             return res.status(404).json({ success: false, message: "No reports found" });
         }
 
-
+ res.set("Cache-Control", "public, max-age=3600");
         return res.status(200).json({ success: true, message: "Reports found", reports });
 
     } catch (error) {
@@ -106,6 +106,7 @@ export const showbugs = async (req, res) => {
         if (!bugs || bugs.length === 0) {
             return res.status(404).json({ success: false, message: "No bugs found" });
         }
+         res.set("Cache-Control", "public, max-age=3600");
         return res.status(200).json({ success: true, message: "Bugs found", bugs });
     } catch (error) {
 
@@ -125,8 +126,7 @@ export const validatereport = async (req, res) => {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
         const admin = process.env.ADMIN_ID
-        console.log(typeof userid._id);
-        console.log(typeof admin);
+       
         if (userid._id.toString() !== admin) {
             return res.status(403).json({ success: false, message: "Unauthorized only admin can see reports" });
         }
@@ -171,11 +171,71 @@ The SplitUp Team
         if (!updatedreport) {
             return res.status(500).json({ success: false, message: "Report not updated" });
         }
-
+        await report.deleteOne();
         return res.status(200).json({ success: true, message: "Report validated successfully" });
 
     } catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+
+export const validatebugs = async(req, res) => {
+    try {
+          const token = req.cookies.accesstoken;
+        const reportbugid = req.body.reportbugid;
+        
+        if (!reportbugid ) {
+            return res.status(400).json({ success: false, message: "Report ID  is required" });
+        }
+        const userid = extractuserid(token);
+        if (!userid) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const admin = process.env.ADMIN_ID
+       
+        if (userid._id.toString() !== admin) {
+            return res.status(403).json({ success: false, message: "Unauthorized only admin can see reports" });
+        }
+
+        const report = await reportbugmodel.findById(reportbugid).populate("reporter", "email").select("-__v");
+        if (!report) {
+            return res.status(404).json({ success: false, message: "Report not found" });
+        }
+        
+        const reporteduseremail = report.reporter.email;
+        const message = `
+Hello,
+
+Thank you for taking the time to report a bug on SplitUp.
+
+We have successfully received your bug report .
+
+
+
+Our development team will carefully review the information you provided and investigate the issue. Every report helps us improve the reliability, performance, and overall experience of SplitUp.
+
+While we may not be able to provide individual updates for every report, please be assured that your feedback is valuable and will be considered during our development process.
+
+We sincerely appreciate your effort, patience, and support in helping us build a better platform for everyone.
+
+Thank you for being a valued member of the SplitUp community.
+
+Best regards,
+
+The SplitUp Team
+`;
+
+        const mail = await reportusermail(reporteduseremail, message);
+        if (!mail) {
+            return res.status(500).json({ success: false, message: "Email not sent" });
+        }
+        
+        return res.status(200).json({ success: true, message: "Report validated successfully" });
+        
+    } catch (error) {
+        console.log(error);
+           return res.status(500).json({ success: false, message: "Internal server error" });
     }
 }
