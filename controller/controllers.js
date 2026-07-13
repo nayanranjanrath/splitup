@@ -13,7 +13,7 @@ import aplicantmodel from "../models/aplicant.model.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import categorymodle from "../models/category.model.js";
 import ratingmodel from "../models/rating.model.js";
- 
+
 
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { report } from "process";
@@ -338,7 +338,7 @@ export const platformsplitrequest = async (req, res) => {
             },
             required: ["is_platform", "is_ai_generated", "has_premium_proof", "premium_evidence", "reasoning"],
         };
-       const prompt = `You are a strict fraud-prevention moderator verifying account screenshots for a platform-sharing service. 
+        const prompt = `You are a strict fraud-prevention moderator verifying account screenshots for a platform-sharing service. 
     The user claims this screenshot proves they have an active, paid account for the platform: "${platform}".
 
     Analyze the image and determine if it meets our security criteria:
@@ -710,6 +710,7 @@ export const showreviews = async (req, res) => {
         if (!reviews || reviews.length === 0) {
             return res.status(404).json({ success: false, message: "No reviews found for this user" });
         }
+        res.set("Cache-Control", "public, max-age=300");
         return res.status(200).json({ success: true, message: "User reviews", reviews });
     } catch (error) {
         console.log(error);
@@ -982,6 +983,7 @@ export const showapplicants = async (req, res) => {
     try {
         const token = req.cookies.accesstoken;
         const userid = extractuserid(token);
+        res.set("Cache-Control", "public, max-age=600");
         if (!userid) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
@@ -1025,6 +1027,9 @@ export const acceptapplicant = async (req, res) => {
             return res.status(400).json({ success: false, message: "Applicant is already a member of this request" });
         }
         request.members.push(aplicantid);
+        if (request.members.length + 1 === request.totalslots) {
+            request.status = "full"
+        }
         await request.save();
         return res.status(200).json({ success: true, message: "Applicant accepted successfully" });
     } catch (error) {
@@ -1036,20 +1041,23 @@ export const showrequeststatus = async (req, res) => {
     try {
         const token = req.cookies.accesstoken;
         const userid = extractuserid(token);
+        res.set("Cache-Control", "public, max-age=3600");
         if (!userid) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
         const { requestid } = req.params;
-        const request = await platformsharerequestmodel.findById(requestid);
+        const request = await platformsharerequestmodel.findById(requestid).select("-__v   -createdAt  -requister -proofimage -planvalidityday").populate("members", "profilename ");
         if (!request) {
             return res.status(404).json({ success: false, message: "Request not found" });
         }
 
         if (request.requister.toString() === userid._id.toString()) {
+
             return res.status(200).json({ success: true, message: "You are the requester of this request", status: "requester" });
         }
 
         if (request.members.some(member => member.equals(userid._id))) {
+
             return res.status(200).json({ success: true, message: "You are a member of this request", status: "accepted" });
         }
         return res.status(200).json({ success: true, message: "You are not a member of this request", status: "pending" });
@@ -1087,3 +1095,92 @@ export const removeapplicant = async (req, res) => {
     }
 }
 
+export const deleterequest = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token);
+        if (!userid) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const { requestid } = req.body;
+        const request = await platformsharerequestmodel.findById(requestid);
+        if (!request) {
+            return res.status(404).json({ success: false, message: "Request not found" });
+        }
+        if (request.requister.toString() !== userid._id.toString()) {
+            return res.status(402).json({ success: false, message: "Unauthorized only requester can remove request" });
+        }
+        const deletedrequest = await request.deleteOne();
+        if (!deletedrequest) {
+            return res.status(404).json({ success: false, message: "Request not found to delete" });
+        }
+
+        return res.status(200).json({ success: true, message: "Request deleted successfully" });
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export const myrequest = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token);
+        if (!userid) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const requests = await platformsharerequestmodel.find({ requister: userid._id }).select("-__v   -createdAt  -requister -proofimage -planvalidityday").populate("members", "profilename ");
+        if (!requests) {
+            return res.status(404).json({ success: false, message: "No requests found" });
+        }
+        res.set("Cache-Control", "public, max-age=300");
+        return res.status(200).json({ success: true, message: "Requests found", requests });
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export const myapply = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token);
+        if (!userid) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const requests = await aplicantmodel
+            .find({
+                applicant: userid._id
+            })
+            .populate({
+                path: "request",
+                select: "-proofimage -planvalidityday -__v",
+                populate: [
+                    {
+                        path: "requister",
+                        select: "profilename avatar"
+                    },
+                    {
+                        path: "platformname",
+                        select: "platformname"
+                    },
+                    {
+                        path: "members",
+                        select: "profilename"
+                    }
+                ]
+            })
+            .select("-__v -createdAt");
+        if (!requests) {
+            return res.status(404).json({ success: false, message: "No requests found" });
+        }
+        res.set("Cache-Control", "public, max-age=300");
+        return res.status(200).json({ success: true, message: "Requests found", requests });
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
