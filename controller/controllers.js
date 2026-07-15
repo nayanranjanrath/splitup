@@ -13,7 +13,7 @@ import aplicantmodel from "../models/aplicant.model.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import categorymodle from "../models/category.model.js";
 import ratingmodel from "../models/rating.model.js";
-
+import tempChatModel   from "../models/tempchat.model.js";
 
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { report } from "process";
@@ -969,6 +969,10 @@ export const applyforrequest = async (req, res) => {
         }
         requestaplicant.applicant.push(userid._id);
         await requestaplicant.save();
+        const tempmessage = await tempChatModel.findOne({ request: requestid });
+        if (!tempmessage) {
+            await tempChatModel.create({ request: requestid });
+        }
         return res.status(200).json({ success: true, message: "Applied for request successfully" });
 
 
@@ -1031,6 +1035,7 @@ export const acceptapplicant = async (req, res) => {
             request.status = "full"
         }
         await request.save();
+
         return res.status(200).json({ success: true, message: "Applicant accepted successfully" });
     } catch (error) {
         console.log(error);
