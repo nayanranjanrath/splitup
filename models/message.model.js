@@ -1,3 +1,6 @@
+import { Schema, model } from "mongoose";
+
+
 const messageSchema = new Schema({
 
     room: {
@@ -32,3 +35,7 @@ const messageSchema = new Schema({
 
 
 });
+
+const messageModel = model("messagemodel", messageSchema);
+
+export default messageModel
