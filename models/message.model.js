@@ -15,10 +15,20 @@ const messageSchema = new Schema({
         required: true
     },
 
-    message: {
+    encryptedmessage: {
         type: String,
         required: true,
-        trim: true
+        
+    },
+
+    iv: {
+        type: String,
+        required: true
+    },
+
+    authTag: {
+        type: String,
+        required: true
     },
 
     createdAt: {

@@ -17,7 +17,8 @@ const io = new Server(server, {  cors: {
         origin: "*", // Your frontend URL
         credentials: true
     }})
-
+import registerBaseSocket from "./socket/base.socket.js";
+registerBaseSocket(io);
 app.use(express.json());
 app.use(cookieParser());
 connectdb();
