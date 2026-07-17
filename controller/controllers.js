@@ -969,10 +969,7 @@ export const applyforrequest = async (req, res) => {
         }
         requestaplicant.applicant.push(userid._id);
         await requestaplicant.save();
-        const tempmessage = await tempChatModel.findOne({ request: requestid });
-        if (!tempmessage) {
-            await tempChatModel.create({ request: requestid });
-        }
+       
         return res.status(200).json({ success: true, message: "Applied for request successfully" });
 
 
@@ -1035,7 +1032,10 @@ export const acceptapplicant = async (req, res) => {
             request.status = "full"
         }
         await request.save();
-
+         const tempmessage = await tempChatModel.findOne({ request: requestid });
+        if (!tempmessage) {
+            await tempChatModel.create({ request: requestid });
+        }
         return res.status(200).json({ success: true, message: "Applicant accepted successfully" });
     } catch (error) {
         console.log(error);

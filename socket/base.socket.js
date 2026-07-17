@@ -1,11 +1,11 @@
 import cookie from "cookie";
-import { extractuserid } from "./controller/controllers.js";
-
-
+import { extractuserid } from "../controller/controllers.js";
+import registerRequestChat from "./tempchat.socket.js";
+import usermodel from "../models/user.model.js";
 
 
 export default function registerBaseSocket(io) {
-    io.use((socket, next) => {
+    io.use(async (socket, next) => {
 
         try {
 
@@ -14,10 +14,16 @@ export default function registerBaseSocket(io) {
             );
 
             const userid = extractuserid(cookies.accesstoken);
- if (!userid) {
+            if (!userid) {
                 return next(new Error("Unauthorized"));
             }
-           
+            const user = await usermodel.findById(userid._id)
+                .select("profilename avatar");
+            if (!user) {
+                return next(new Error("Unauthorized"));
+            }
+            socket.avatar = user.avatar;
+            socket.profilename = user.profilename;
 
             socket.userId = userid._id;
 
@@ -30,7 +36,7 @@ export default function registerBaseSocket(io) {
         }
 
     });
-   
+
     io.on("connection", (socket) => {
 
         console.log("Connected:", socket.id);
