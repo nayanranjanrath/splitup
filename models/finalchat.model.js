@@ -11,11 +11,7 @@ const finalChatSchema = new Schema({
         ref: "usermodel"
     }],
  
-    existingplans: [{
-        type: Schema.Types.ObjectId,
-        ref: "planmodel"
-    }],
-
+   
     createdAt: {
         type: Date,
         default: Date.now

@@ -38,7 +38,7 @@ required:true,
 },
 planname:{
     type:String,
-     
+     required:true, 
 },
 
 status: {
