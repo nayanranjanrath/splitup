@@ -169,7 +169,18 @@ export const rejectusers =async(req,res)=>{
 
 export const showallproofimage =async(req,res)=>{
     try {
-        
+        const token = req.cookies.accesstoken
+        const requestid = req.body.requestid
+        const userid = extractuserid(token)
+        if (!userid) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+        const payment = await paymentproofmodel.find({ request: requestid }).select("-createdAt -__v")
+        if(!payment){
+            return res.status(404).json({ success: false, message: "no such paymentproof find " });
+        }
+        res.set("Cache-Control", "public, max-age=300");
+        return res.status(200).json({ success: true, message: "payment proof found", payment })
     } catch (error) {
         console.log(error)
         return res.status(500).json({ success: false, message: "internalserver error" }) 
