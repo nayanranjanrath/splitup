@@ -106,104 +106,64 @@ export const sendpaymentproof = async (req, res) => {
 }
 
 export const aproveusers =async(req,res)=>{
-      const session = await mongoose.startSession();
-    try {
-           
-        const token = req.cookies.accesstoken
+   try {
+          const token = req.cookies.accesstoken
+        const paymentproofid=req.body.paymentproofid;
+        if(!paymentproofid){
+            return res.status(404).json({ success: false, message: "payment proof id is required " }); 
+        }
+      
         const userid = extractuserid(token)
-        const candidateid = req.body.candidateid
-        const finalgroupname = req.body.finalgroupname
-        if(!finalgroupname){
-            return res.status(404).json({ success: false, message: "finalgroupname is required" });
-        }
-        if(!candidateid){
-            return res.status(404).json({ success: false, message: "candidateid is required" });
-        }
         if (!userid) {
             return res.status(403).json({ success: false, message: "Unauthorized" });
         }
-
-        const requestid = req.body.requestid
-        if (!requestid) {
-            return res.status(404).json({ success: false, message: "request not found" });
+        const payment = await paymentproofmodel.findById(paymentproofid).populate("request", "requister")
+        if(!payment){
+            return res.status(404).json({ success: false, message: "no such paymentproof find " });
         }
-        session.startTransaction();
-        const request = await platformsharerequestmodel.findById(requestid)  .session(session);
-
-        if (!request) {
-            return res.status(404).json({ success: false, message: "request not found" });
-        }
-        if(request.requister.toString() !== userid._id.toString()){
+        if(payment.request.requister.toString() !== userid._id.toString()){
             return res.status(403).json({ success: false, message: "Unauthorized only requester can aprove users" });
         }
-        const paymentproof = await paymentproofmodel.findOne({ $and: [{ request: requestid }, { user:candidateid }] },)  .session(session);
-
-        if (!paymentproof) {
-            return res.status(404).json({ success: false, message: "payment proof not found" });
-        }
-        paymentproof.status = "approved"
         
-       await paymentproof.save({ session });
+        payment.status="approved"
+        await payment.save()
+        return res.status(200).json({ success: true, message: "payment proof approved successfully" })
 
-        const finalchat = await finalChatModel.findOne({ $and: [{ admin: userid._id }, { groupname:finalgroupname}] },)  .session(session);
-
-        if (!finalchat) {
-           const newfinalchat = new finalChatModel(
-            {   admin:userid._id,
-                groupname:finalgroupname,
-                members:[userid._id,candidateid]
-
-
-            }
-           )
-
-            const plan = new planmodel({
-                finalchatid: newfinalchat._id,
-                platform: request.platform,
-                planname: request.planname,
-                planvalidity: request.planvalidity,
-                
-            })
-           
-             await newfinalchat.save({ session });
-                await plan.save({ session });
-
-        await session.commitTransaction();
-           
-            return res.status(200).json({ success: true, message: "finalchat created successfully" })
-        }
-        const alreadyMember = finalchat.members.some(member =>
-    member.equals(candidateid)
-);
-        if(alreadyMember){
-            return res.status(400).json({ success: false, message: "user already added" })
-        }
-        finalchat.members.push(candidateid)
-       await finalchat.save({ session });
-
-await session.commitTransaction();
-
-        return res.status(200).json({ success: true, message: "proof approved successfully" })
-
-    } catch (error) {
-          
-
-        console.log(error)
+   } catch (error) {
+     console.log(error)
         return res.status(500).json({ success: false, message: "internalserver error" })
-        await session.abortTransaction();
-    }
-        finally {
-
-        session.endSession();
-        }
-    
+   }
 }
 
 export const rejectusers =async(req,res)=>{
     try {
-        
+        const token = req.cookies.accesstoken
+        const paymentproofid=req.body.paymentproofid;
+        if(!paymentproofid){
+            return res.status(404).json({ success: false, message: "payment proof id is required " }); 
+        }
+      
+        const userid = extractuserid(token)
+        if (!userid) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+        const payment = await paymentproofmodel.findById(paymentproofid).populate("request", "requister")
+        if(!payment){
+            return res.status(404).json({ success: false, message: "no such paymentproof find " });
+        }
+        if(payment.request.requister.toString() !== userid._id.toString()){
+            return res.status(403).json({ success: false, message: "Unauthorized only requester can aprove users" });
+        }
+        if(payment.status=="approved"){
+             return res.status(404).json({ success: true, message: "you cant reject approved payment proof" })
+        }
+        payment.status="rejected"
+        await payment.save()
+        return res.status(200).json({ success: true, message: "payment proof rejected successfully" })
+
     } catch (error) {
-        
+         console.log(error)
+        return res.status(500).json({ success: false, message: "internalserver error" })
     }
 }
 
@@ -211,6 +171,7 @@ export const showallproofimage =async(req,res)=>{
     try {
         
     } catch (error) {
-        
+        console.log(error)
+        return res.status(500).json({ success: false, message: "internalserver error" }) 
     }
 }
