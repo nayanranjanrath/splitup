@@ -5,7 +5,7 @@ const router = express.Router();
 import { registeruser,verifyuser,loginuser,revalidateuser,logoutuser,platformsplitrequest,selectplatform,createplatform ,selectcategory,createcategory,showallplatform,showallcategory,detailsofplatform,showprofile,rateuser,showreviews,editrating,showrequest,applyforrequest,showapplicants,acceptapplicant,showrequeststatus,removeapplicant,deleterequest,myrequest,myapply}  from "../controller/controllers.js";
 import {reportuser,reportabug,showreports,showbugs,validatereport,validatebugs}from "../controller/report.controller.js"
 import {avatarUpload,postUpload} from "../middlewares/multer.js"
-import{showallgroup}from "../controller/tempgroup.controller.js"
+import{showallgroup, sendpaymentproof}from "../controller/tempgroup.controller.js"
 console.log(typeof registeruser);
 console.log(typeof avatarUpload);
 
@@ -33,7 +33,11 @@ console.log(typeof avatarUpload);
  router.get("/showreports",showreports)
  router.get("/showbugs",showbugs)
  router.get("/myapply",myapply)
- router.get("/showallgroup",showallgroup)
+ router.get("/showallgroup",showallgroup)//not checked yet
+ router.post("/ sendpaymentproof", sendpaymentproof)//not checked yet
+ router.post("/ aproveusers", aproveusers)//not checked yet
+ router.post("/ rejectusers", rejectusers)//not checked yet
+ router.get("/ showallproofimage", showallproofimage)//not checked yet
  
  router.get("/myrequest",myrequest)
  router.post("/acceptapplicant",acceptapplicant)
