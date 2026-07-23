@@ -2,7 +2,7 @@ import finalChatModel from "../models/finalchat.model";
 import { extractuserid } from "./controllers.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import planmodel from "../models/plan.model.js";
-
+import platformmodel from "../models/platform.model.js";
 
 export const showallgroups = async (req, res) => {
     try {
@@ -18,7 +18,7 @@ export const showallgroups = async (req, res) => {
         if (!finalgroups) {
             return res.status(404).json({ success: false, message: "no such finalgroup find " });
         }
-        res.set("Cache-Control", "public, max-age=300");
+       
         return res.status(200).json({ success: true, message: "finalgroups found", finalgroups })
     } catch (error) {
         console.log(error)
@@ -96,3 +96,66 @@ export const addmembers = async (req, res) => {
 }
 // now i have to create some controller about the add plans ,add the signin details of the platform etc ,delete group request so that before deleteing every memner get the message so that they can approve the delete 
 
+export const selectplatform  = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken
+        const { groupid, platformid } = req.body;
+
+        if (!groupid || !platformid) {
+            return res.status(404).json({ success: false, message: " all the fiedls are  required " });
+        }
+        const userid = extractuserid(token)
+        if (!userid) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+        const group = await finalChatModel.findById(groupid)
+        if (!group) {
+            return res.status(404).json({ success: false, message: "no such group find " });
+        }
+        if (group.admin.toString() !== userid._id.toString()) {
+            return res.status(403).json({ success: false, message: "Unauthorized only admin can add platform" });
+        }
+      const plan =new planmodel({
+        finalchatid: groupid,
+        platform: platformid
+      })
+      await plan.save()
+        return res.status(200).json({ success: true, message: "platform added successfully" })
+    } catch (error) {
+          console.log(error)
+        return res.status(500).json({ success: false, message: "internalserver error" })
+    }
+}
+export const addplan = async(req,res)=>{
+    try {
+        
+        const {planid ,groupid, planname, planvalidity } = req.body;
+
+        if (!groupid || !planname || !planvalidity||!planid) {
+            return res.status(404).json({ success: false, message: " all the fiedls are  required " });
+        }
+      
+        const group = await finalChatModel.findById(groupid)
+        if (!group) {
+            return res.status(404).json({ success: false, message: "no such group find " });
+        }
+        if (group.admin.toString() !== userid._id.toString()) {
+            return res.status(403).json({ success: false, message: "Unauthorized only admin can add plan" });
+        }
+        const plan = await planmodel.findById(planid)
+        if (!plan) {
+            return res.status(404).json({ success: false, message: "no such plan find " });
+        }
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + planvalidity * 24 * 60 * 60 * 1000);
+        plan.finalchatid=groupid
+        plan.planname=planname
+        plan.planvalidity=planvalidity
+        plan.expiresAt=expiresAt
+        await plan.save()
+        return res.status(200).json({ success: true, message: "plan added successfully" })
+    } catch (error) {
+         console.log(error)
+        return res.status(500).json({ success: false, message: "internalserver error" })
+    }
+}
