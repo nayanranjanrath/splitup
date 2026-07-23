@@ -3,6 +3,7 @@ import { extractuserid } from "./controllers.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import planmodel from "../models/plan.model.js";
 import platformmodel from "../models/platform.model.js";
+import redis from "../utility/redisconnection.js"
 
 export const showallgroups = async (req, res) => {
     try {
@@ -99,9 +100,30 @@ export const addmembers = async (req, res) => {
 export const selectplatform  = async (req, res) => {
     try {
         const token = req.cookies.accesstoken
-        const { groupid, platformid } = req.body;
+        const platformid  = req.body.platformid;
 
-        if (!groupid || !platformid) {
+        if (! platformid) {
+            return res.status(404).json({ success: false, message: " platform id is required  " });
+        }
+        const userid = extractuserid(token)
+        if (!userid) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+       redis.set (`platform${userid._id}`,platformid,'EX',300)
+        return res.status(200).json({ success: true, message: "platform added successfully" })
+    } catch (error) {
+          console.log(error)
+        return res.status(500).json({ success: false, message: "internalserver error" })
+    }
+}
+export const addplan = async(req,res)=>{
+    try {
+        const token = req.cookies.accesstoken
+        
+
+        const {  groupid, planname, planvalidity } = req.body;
+
+        if (!groupid || !planname || !planvalidity) {
             return res.status(404).json({ success: false, message: " all the fiedls are  required " });
         }
         const userid = extractuserid(token)
@@ -113,45 +135,22 @@ export const selectplatform  = async (req, res) => {
             return res.status(404).json({ success: false, message: "no such group find " });
         }
         if (group.admin.toString() !== userid._id.toString()) {
-            return res.status(403).json({ success: false, message: "Unauthorized only admin can add platform" });
-        }
-      const plan =new planmodel({
-        finalchatid: groupid,
-        platform: platformid
-      })
-      await plan.save()
-        return res.status(200).json({ success: true, message: "platform added successfully" })
-    } catch (error) {
-          console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
-    }
-}
-export const addplan = async(req,res)=>{
-    try {
-        
-        const {planid ,groupid, planname, planvalidity } = req.body;
-
-        if (!groupid || !planname || !planvalidity||!planid) {
-            return res.status(404).json({ success: false, message: " all the fiedls are  required " });
-        }
-      
-        const group = await finalChatModel.findById(groupid)
-        if (!group) {
-            return res.status(404).json({ success: false, message: "no such group find " });
-        }
-        if (group.admin.toString() !== userid._id.toString()) {
             return res.status(403).json({ success: false, message: "Unauthorized only admin can add plan" });
         }
-        const plan = await planmodel.findById(planid)
-        if (!plan) {
-            return res.status(404).json({ success: false, message: "no such plan find " });
+        const platform = await redis.get(`platform${userid._id}`)
+        if (!platform) {
+            return res.status(404).json({ success: false, message: "no platfom selected or selected platform expaired please try again  " });
         }
+      
         const now = new Date();
         const expiresAt = new Date(now.getTime() + planvalidity * 24 * 60 * 60 * 1000);
-        plan.finalchatid=groupid
-        plan.planname=planname
-        plan.planvalidity=planvalidity
-        plan.expiresAt=expiresAt
+         const plan = new planmodel({
+            finalchatid: groupid,
+            platform: platform,
+            planname: planname,
+            planvalidity: planvalidity,
+             expiresAt:expiresAt
+        })
         await plan.save()
         return res.status(200).json({ success: true, message: "plan added successfully" })
     } catch (error) {
