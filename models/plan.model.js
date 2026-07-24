@@ -24,14 +24,13 @@ const planschema = new Schema({
         type: Date,
         default: Date.now
     },
-    platformemail: {
-        type: String,
+    platformsignindetails: {
+      type: Schema.Types.ObjectId,
+        ref: "platformsignindetailsmodel",
+        
        
     },
-    platformepassword: {
-        type: String,
-        
-    },
+   
     expiresAt: {
         type: Date,
         
