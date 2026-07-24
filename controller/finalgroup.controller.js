@@ -4,7 +4,8 @@ import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import planmodel from "../models/plan.model.js";
 import platformmodel from "../models/platform.model.js";
 import redis from "../utility/redisconnection.js"
-
+import platformsignindetailsmodel from "../models/platformsignindetails.model.js"
+import { encryptMessage, decryptMessage } from "../utility/messageencryption.js";
 export const showallgroups = async (req, res) => {
     try {
         const token = req.cookies.accesstoken
@@ -156,5 +157,41 @@ export const addplan = async(req,res)=>{
     } catch (error) {
          console.log(error)
         return res.status(500).json({ success: false, message: "internalserver error" })
+    }
+}
+
+export const addsignindetails = async(req,res)=>{
+    try {
+        //add encryption of the password
+        const token = req.cookies.accesstoken
+        const {planid, platformemail,platformepassword } = req.body;
+
+        if (!planid || !platformemail || !platformepassword) {
+            return res.status(404).json({ success: false, message: " all the fiedls are  required " });
+        }
+        const userid = extractuserid(token)
+        if (!userid) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+        const plan = await planmodel.findById(planid).populate('finalchatid')
+        if (!plan) {
+            return res.status(404).json({ success: false, message: "no such plan find " });
+        }
+        const planmail = encryptMessage(platformemail.trim())
+        const planpassword = encryptMessage(platformepassword.trim())
+        if (plan.finalchatid.admin.toString() !== userid._id.toString()) {
+            return res.status(403).json({ success: false, message: "Unauthorized only admin can add plan" });
+        }
+        plan.platformemail = planmail.encryptedmessage
+        plan.mailiver = planmail.iv
+        plan.mailauth = planmail.authTag
+        plan.platformpassword = planpassword.encryptedmessage
+        plan.passwordiver = planpassword.iv
+        plan.passwordauth = planpassword.authTag
+        await plan.save()
+        return res.status(200).json({ success: true, message: "signin details added successfully" })
+    } catch (error) {
+       console.log(error)
+        return res.status(500).json({ success: false, message: "internalserver error" })  
     }
 }
