@@ -4,7 +4,7 @@ const tempChatSchema = new Schema({
 
     request: {
         type: Schema.Types.ObjectId,
-        ref: "platformsharerequestmodel",
+        ref: "platformsharerequest",
         required: true,
         unique: true
     },

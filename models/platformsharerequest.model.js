@@ -5,7 +5,7 @@ const platformsharerequest= new Schema({
 
 platformname:{
     type:Schema.Types.ObjectId,
-    ref:"platformmodel"
+    ref:"platform"
     
 },
 requister:{

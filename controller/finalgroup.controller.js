@@ -8,7 +8,7 @@ import platformsignindetailsmodel from "../models/platformsignindetails.model.js
 import deletefinalgrouprequest from "../models/deletefinalgrouprequestt.model.js"
 import { encryptMessage, decryptMessage } from "../utility/messageencryption.js";
 import mongoose from "mongoose";
-export const showallgroups = async (req, res) => {
+export const showalladmingroups = async (req, res) => {
     try {
         const token = req.cookies.accesstoken
         if (!token) {

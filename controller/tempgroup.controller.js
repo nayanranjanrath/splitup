@@ -5,6 +5,8 @@ import paymentproofmodel from "../models/paymentproof.model.js";
 import { uploadtocloudinar } from "../utility/cloudinary.js"
 import finalChatModel from "../models/finalchat.model.js";
 import planmodel from "../models/plan.model.js";
+import { convertToJpg } from "../utility/sharp.js";
+import fs from "fs"
 export const showallgroup = async (req, res) => {
     try {
         const userid = req.cookies.accesstoken
@@ -64,40 +66,45 @@ export const sendpaymentproof = async (req, res) => {
     try {
         const token = req.cookies.accesstoken
         const requestid = req.body.requestid
+        if (!requestid) {
+            return res.status(404).json({ success: false, message: "request not found" });
+        }
         let proofimage = req.file?.path;
-        if (!prooofimage) {
+        console.log("proof image incoming ", proofimage)
+        if (!proofimage) {
             return res.status(404).json({ success: false, message: "payment proof is required" });
         }
         const userid = extractuserid(token)
         if (!userid) {
             return res.status(403).json({ success: false, message: "Unauthorized" });
         }
-        if (!requestid) {
-            return res.status(404).json({ success: false, message: "request not found" });
-        }
+
         const request = await platformsharerequestmodel.findById(requestid)
         if (!request) {
             return res.status(404).json({ success: false, message: "request not found" });
         }
         const paymentproof = await paymentproofmodel.findOne({ $and: [{ request: requestid }, { user: userid }] },)
-        if (paymentproof.status === "approved"||paymentproof.status === "pending") {
+        if (paymentproof && (paymentproof.status === "approved" || paymentproof.status === "pending")) {
+            fs.unlinkSync(proofimage);
             return res.status(404).json({ success: false, message: "payment proof already sent" });
         }
-        
-        const proof = await uploadtocloudinar(proofimage)
+        else {
+            const { outputPath } = await convertToJpg(proofimage)
+            console.log("jpg proof image ", outputPath)
+            const proof = await uploadtocloudinar(outputPath)
 
 
-        const newproof = new paymentproofmodel({
-            request: requestid,
-            user: userid,
-            proofimage: {
-                url: proof.url,
-                publicId: proof.public_id
-            }
-        });
-        await newproof.save()
-        return res.status(200).json({ success: true, message: "payment proof sent successfully" })
-
+            const newproof = new paymentproofmodel({
+                request: requestid,
+                user: userid,
+                proofimage: {
+                    url: proof.url,
+                    publicId: proof.public_id
+                }
+            });
+            await newproof.save()
+            return res.status(200).json({ success: true, message: "payment proof sent successfully" })
+        }
 
     } catch (error) {
         console.log(error)
@@ -105,85 +112,92 @@ export const sendpaymentproof = async (req, res) => {
     }
 }
 
-export const aproveusers =async(req,res)=>{
-   try {
-          const token = req.cookies.accesstoken
-        const paymentproofid=req.body.paymentproofid;
-        if(!paymentproofid){
-            return res.status(404).json({ success: false, message: "payment proof id is required " }); 
+export const aproveusers = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken
+        const paymentproofid = req.body.paymentproofid;
+        if (!paymentproofid) {
+            return res.status(404).json({ success: false, message: "payment proof id is required " });
         }
-      
+
         const userid = extractuserid(token)
         if (!userid) {
             return res.status(403).json({ success: false, message: "Unauthorized" });
         }
         const payment = await paymentproofmodel.findById(paymentproofid).populate("request", "requister")
-        if(!payment){
+        if (!payment) {
             return res.status(404).json({ success: false, message: "no such paymentproof find " });
         }
-        if(payment.request.requister.toString() !== userid._id.toString()){
+        if (payment.request.requister.toString() !== userid._id.toString()) {
             return res.status(403).json({ success: false, message: "Unauthorized only requester can aprove users" });
         }
-        
-        payment.status="approved"
+
+        payment.status = "approved"
         await payment.save()
         return res.status(200).json({ success: true, message: "payment proof approved successfully" })
 
-   } catch (error) {
-     console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
-   }
-}
-
-export const rejectusers =async(req,res)=>{
-    try {
-        const token = req.cookies.accesstoken
-        const paymentproofid=req.body.paymentproofid;
-        if(!paymentproofid){
-            return res.status(404).json({ success: false, message: "payment proof id is required " }); 
-        }
-      
-        const userid = extractuserid(token)
-        if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        const payment = await paymentproofmodel.findById(paymentproofid).populate("request", "requister")
-        if(!payment){
-            return res.status(404).json({ success: false, message: "no such paymentproof find " });
-        }
-        if(payment.request.requister.toString() !== userid._id.toString()){
-            return res.status(403).json({ success: false, message: "Unauthorized only requester can aprove users" });
-        }
-        if(payment.status=="approved"){
-             return res.status(404).json({ success: true, message: "you cant reject approved payment proof" })
-        }
-        payment.status="rejected"
-        await payment.save()
-        return res.status(200).json({ success: true, message: "payment proof rejected successfully" })
-
     } catch (error) {
-         console.log(error)
+        console.log(error)
         return res.status(500).json({ success: false, message: "internalserver error" })
     }
 }
 
-export const showallproofimage =async(req,res)=>{
+export const rejectusers = async (req, res) => {
     try {
         const token = req.cookies.accesstoken
-        const requestid = req.body.requestid
+        const paymentproofid = req.body.paymentproofid;
+        if (!paymentproofid) {
+            return res.status(404).json({ success: false, message: "payment proof id is required " });
+        }
+
+        const userid = extractuserid(token)
+        if (!userid) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+        const payment = await paymentproofmodel.findById(paymentproofid).populate("request", "requister")
+        if (!payment) {
+            return res.status(404).json({ success: false, message: "no such paymentproof find " });
+        }
+        if (payment.request.requister.toString() !== userid._id.toString()) {
+            return res.status(403).json({ success: false, message: "Unauthorized only requester can aprove users" });
+        }
+        if (payment.status == "approved") {
+            return res.status(404).json({ success: true, message: "you cant reject approved payment proof" })
+        }
+        payment.status = "rejected"
+        await payment.save()
+        return res.status(200).json({ success: true, message: "payment proof rejected successfully" })
+
+    } catch (error) {
+        console.log(error)
+        return res.status(500).json({ success: false, message: "internalserver error" })
+    }
+}
+
+export const showallproofimage = async (req, res) => {
+    try {
+        const token = req.cookies.accesstoken
+        const requestid = req.params.requestid
+        console.log(requestid)
         const userid = extractuserid(token)
         if (!userid) {
             return res.status(403).json({ success: false, message: "Unauthorized" });
         }
         const payment = await paymentproofmodel.find({ request: requestid }).select("-createdAt -__v")
-        if(!payment){
+        if (payment.length === 0) {
             return res.status(404).json({ success: false, message: "no such paymentproof find " });
         }
         res.set("Cache-Control", "public, max-age=300");
-        return res.status(200).json({ success: true, message: "payment proof found", payment })
+        const urls = payment.map(p => p.proofimage[0]?.url);
+
+        return res.status(200).json({
+            success: true,
+            payment: urls
+        });
+
     } catch (error) {
         console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" }) 
+        return res.status(500).json({ success: false, message: "internalserver error" })
     }
 }
 
