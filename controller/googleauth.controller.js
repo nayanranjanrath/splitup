@@ -84,3 +84,21 @@ export const adduserdetails = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 }
+
+
+export const avilibleprofilename  = async (req, res) => {
+    try {
+        const { profilename } = req.body
+        if (!profilename) {
+            return res.status(400).json({ message: "Profile name is required" });
+        }
+        const existingUser = await usermodel.findOne({ profilename });
+        if (existingUser) {
+            return res.status(400).json({ message: "Profile name already exists" });
+        }
+        return res.status(200).json({ message: "Profile name is available" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+}
