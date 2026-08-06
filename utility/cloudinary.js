@@ -9,7 +9,7 @@ cloudinary.config({
 
 
 
-console.log(cloudinary.config());
+
 
 export const uploadtocloudinar = async (localpath) => {
 try {

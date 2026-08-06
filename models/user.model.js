@@ -12,6 +12,11 @@ const userSchema = new Schema({
         trim:true,
         index:true
     },
+    googleId: {
+    type: String,
+    unique: true,
+    sparse: true
+},
     fullname:{
         type:String,
         maxlength:10
@@ -29,7 +34,7 @@ const userSchema = new Schema({
     },
     password:{
         type:String,
-        required:true
+        
 
     },
     refreshtoken:{

@@ -24,9 +24,7 @@ app.use(cookieParser());
 connectdb();
 const port = 3000;
 app.use(router);
-app.get("/", (req, res) => {
-    res.send("Hello World !");
-})
+
 
 server.listen(port, () => {
     console.log("Server is running on http://localhost:" + port);

@@ -59,7 +59,7 @@ export const registeruser = async (req, res) => {
         const existinguser = await usermodel.findOne(
             { $or: [{ email: email }, { profilename: profilename }] }
         )
-
+        
         if (existinguser) {
             return res.status(400).json({ success: false, message: "User already exists" })
         }
@@ -274,7 +274,7 @@ export const platformsplitrequest = async (req, res) => {
     try {
         const token = req.cookies.accesstoken;
         const userid = extractuserid(token)
-        console.log("userid", userid)
+        
         const requestid = req.body.requestid
         const request = await platformsharerequestmodel.findById(requestid)
         if (!request) {
