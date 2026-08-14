@@ -6,10 +6,14 @@ import { registeruser,verifyuser,loginuser,revalidateuser,logoutuser,platformspl
 import {reportuser,reportabug,showreports,showbugs,validatereport,validatebugs}from "../controller/report.controller.js"
 import {avatarUpload,postUpload} from "../middlewares/multer.js"
 import{showallgroup, sendpaymentproof,aproveusers,rejectusers,showallproofimage}from "../controller/tempgroup.controller.js"
-console.log(typeof registeruser);
-console.log(typeof avatarUpload);
+import {googleAuth,adduserdetails,avilibleprofilename} from "../controller/googleauth.controller.js"
+import{showalladmingroups,addnewgroup,addmembers,selectplatform,addplan,addsignindetails,deletegrouprequest,acceptdeleterequest,rejectdeleterequest,showdeleterequest}from "../controller/finalgroup.controller.js"
+import { fromArrayBufferToHex } from "google-auth-library/build/src/crypto/shared.js";
 
  router.post("/register",avatarUpload.single("avatar"),registeruser)
+ router.post("/googleauth",googleAuth)
+ router.post("/adduserdetails",adduserdetails)
+ router.get("/avilibleprofilename/:profilename",avilibleprofilename)
  router.post("/verifyuser",verifyuser)
  router.post("/login",loginuser)
  router.post("/revalidateuser",revalidateuser)

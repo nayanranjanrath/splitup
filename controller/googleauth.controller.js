@@ -28,8 +28,18 @@ export const googleAuth = async (req, res) => {
         });
 
         if (existingUser) {
+            const options = {
+                httpOnly: true,
+                secure: false,
+                sameSite: "none",
+                maxAge: 10 * 24 * 60 * 60 * 1000,
+            }
+
+            existingUser.refreshtoken = refreshtoken;
+           await existingUser.save({ validateBeforeSave: false });
+
             const { accessToken, refreshToken } = await generateaccessandrefreshtoken(existingUser._id);
-            return res.status(200).json({ message: "User already exists" });
+             return res.status(200).cookie("accesstoken", accesstoken, options).cookie("refreshtoken", refreshtoken, options).json({ success: true, message: "User logged in successfully" })
         }
 
         const newUser = await usermodel.create({
@@ -86,9 +96,9 @@ export const adduserdetails = async (req, res) => {
 }
 
 
-export const avilibleprofilename  = async (req, res) => {
+export const avilibleprofilename = async (req, res) => {
     try {
-        const { profilename } = req.body
+        const profilename = req.params.profilename
         if (!profilename) {
             return res.status(400).json({ message: "Profile name is required" });
         }
