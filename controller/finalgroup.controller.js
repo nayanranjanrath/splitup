@@ -130,7 +130,7 @@ export const addplan = async (req, res) => {
         const { groupid, planname, planvalidity } = req.body;
 
         if (!groupid || !planname || !planvalidity) {
-            return res.status(404).json({ success: false, message: " all the fiedls are  required " });
+            return res.status(404).json({ success: false, message: " all the fiedls are  required try again  " });
         }
         const userid = extractuserid(token)
         if (!userid) {
@@ -167,7 +167,7 @@ export const addplan = async (req, res) => {
 
 export const addsignindetails = async (req, res) => {
     try {
-        //add encryption of the password
+        
         const token = req.cookies.accesstoken
         const { planid, platformemail, platformepassword } = req.body;
 
@@ -185,15 +185,18 @@ export const addsignindetails = async (req, res) => {
         const planmail = encryptMessage(platformemail.trim())
         const planpassword = encryptMessage(platformepassword.trim())
         if (plan.finalchatid.admin.toString() !== userid._id.toString()) {
-            return res.status(403).json({ success: false, message: "Unauthorized only admin can add plan" });
+            return res.status(403).json({ success: false, message: "Unauthorized only admin can add signup details " });
         }
-        plan.platformemail = planmail.encryptedmessage
-        plan.mailiver = planmail.iv
-        plan.mailauth = planmail.authTag
-        plan.platformpassword = planpassword.encryptedmessage
-        plan.passwordiver = planpassword.iv
-        plan.passwordauth = planpassword.authTag
-        await plan.save()
+        const singupdetails = new platformsignindetailsmodel({
+            planname: planid,
+            platformemail: planmail.encryptedMessage,
+            mailiv: planmail.iv,
+            mailauth: planmail.authTag,
+            platformpassword: planpassword.encryptedMessage,
+            passwordiv: planpassword.iv,
+            passwordauth: planpassword.authTag
+        })
+        await singupdetails.save()
         return res.status(200).json({ success: true, message: "signin details added successfully" })
     } catch (error) {
         console.log(error)
@@ -448,3 +451,6 @@ export const showdeleterequest = async (req, res) => {
         return res.status(500).json({ success: false, message: "internalserver error" })
     }
 }
+
+
+// add the show login details of plan 

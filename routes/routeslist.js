@@ -56,10 +56,11 @@ import { fromArrayBufferToHex } from "google-auth-library/build/src/crypto/share
  router.get("/showalladmingroups",showalladmingroups)
 router.post("/addnewgroup",addnewgroup)
 router.post("/addmembers",addmembers)
-// not checked
+
 router.post("/selectplatformtofinalgroup",selectplatformtofinalgroup)
 router.post("/addplan",addplan)
 router.post("/addsignindetails",addsignindetails)
+// not checked
 router.post("/deletegrouprequest",deletegrouprequest)
 router.post("/acceptdeleterequest",acceptdeleterequest)
 router.post("/rejectdeleterequest",rejectdeleterequest)
