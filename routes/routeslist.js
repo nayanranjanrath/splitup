@@ -7,7 +7,7 @@ import {reportuser,reportabug,showreports,showbugs,validatereport,validatebugs}f
 import {avatarUpload,postUpload} from "../middlewares/multer.js"
 import{showallgroup, sendpaymentproof,aproveusers,rejectusers,showallproofimage}from "../controller/tempgroup.controller.js"
 import {googleAuth,adduserdetails,avilibleprofilename} from "../controller/googleauth.controller.js"
-import{showalladmingroups,addnewgroup,addmembers,selectplatform,addplan,addsignindetails,deletegrouprequest,acceptdeleterequest,rejectdeleterequest,showdeleterequest}from "../controller/finalgroup.controller.js"
+import{showalladmingroups,addnewgroup,addmembers,selectplatformtofinalgroup,addplan,addsignindetails,deletegrouprequest,acceptdeleterequest,rejectdeleterequest,showdeleterequest}from "../controller/finalgroup.controller.js"
 import { fromArrayBufferToHex } from "google-auth-library/build/src/crypto/shared.js";
 
  router.post("/register",avatarUpload.single("avatar"),registeruser)
@@ -51,5 +51,19 @@ import { fromArrayBufferToHex } from "google-auth-library/build/src/crypto/share
  router.post("/validatereport",validatereport)
  router.post("/validatebugs",validatebugs)
  router.post("/deleterequest",deleterequest)
+
+
+ router.get("/showalladmingroups",showalladmingroups)
+router.post("/addnewgroup",addnewgroup)
+router.post("/addmembers",addmembers)
+// not checked
+router.post("/selectplatformtofinalgroup",selectplatformtofinalgroup)
+router.post("/addplan",addplan)
+router.post("/addsignindetails",addsignindetails)
+router.post("/deletegrouprequest",deletegrouprequest)
+router.post("/acceptdeleterequest",acceptdeleterequest)
+router.post("/rejectdeleterequest",rejectdeleterequest)
+router.get("/showdeleterequest",showdeleterequest)
+
 
 export default router

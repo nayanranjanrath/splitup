@@ -18,7 +18,7 @@ export const showalladmingroups = async (req, res) => {
         if (!userid) {
             return res.status(403).json({ success: false, message: "Unauthorized" });
         }
-        const finalgroups = await finalChatModel.find({ admin: userid._id }).select("-createdAt -__v")
+        const finalgroups = await finalChatModel.find({ admin: userid._id }).select("-createdAt -__v -admin")
         if (!finalgroups) {
             return res.status(404).json({ success: false, message: "no such finalgroup find " });
         }
@@ -33,7 +33,7 @@ export const showalladmingroups = async (req, res) => {
 export const addnewgroup = async (req, res) => {
     try {
         const token = req.cookies.accesstoken
-        const { groupname } = req.body.groupname;
+        const groupname = req.body.groupname;
         if (!groupname) {
             return res.status(404).json({ success: false, message: "groupname is required " });
         }
@@ -74,19 +74,22 @@ export const addmembers = async (req, res) => {
             return res.status(404).json({ success: false, message: "no such request find " });
         }
         const isMember = request.members.some(member =>
-            member.equals(userid._id)
+            member.equals(candidate)
         );
         if (!isMember) {
             return res.status(404).json({ success: false, message: "Unauthorized only member can add members" });
         }
-        const planexpaire = request.planvalidityday + request.createdAt
+        const planexpaire = new Date(
+            request.createdAt.getTime() +
+            request.planvalidityday * 24 * 60 * 60 * 1000
+        );
         const plan = new planmodel({
             finalchatid: groupid,
-            platform: request.platformid,
+            platform: request.platformname,
             planname: request.planname,
-            planvalidity: request.planvalidity,
+            planvalidity: request.planvalidityday,
             expiresAt: planexpaire
-        })
+        });
         await plan.save()
         group.members.push(candidate)
         await group.save()
@@ -100,7 +103,7 @@ export const addmembers = async (req, res) => {
 }
 
 
-export const selectplatform = async (req, res) => {
+export const selectplatformtofinalgroup = async (req, res) => {
     try {
         const token = req.cookies.accesstoken
         const platformid = req.body.platformid;
@@ -233,7 +236,7 @@ export const deletegrouprequest = async (req, res) => {
     }
 }
 
-const acceptdeleterequest = async (req, res) => {
+export const acceptdeleterequest = async (req, res) => {
     const session = await mongoose.startSession();
 
     try {
@@ -385,7 +388,7 @@ export const rejectdeleterequest = async (req, res) => {
         const group = await finalChatModel
             .findById(groupid)
             .select("members admin _id")
-            
+
 
         if (!group) {
             return res.status(404).json({
@@ -420,7 +423,7 @@ export const rejectdeleterequest = async (req, res) => {
             return res.status(404).json({ success: false, message: "you already approved the request" })
         }
         deleterequest.deleteOne()
-        
+
         return res.status(200).json({ success: true, message: "group delete request rejected successfully" })
     } catch (error) {
         console.log(error)
@@ -438,7 +441,7 @@ export const showdeleterequest = async (req, res) => {
         if (!deleterequest) {
             return res.status(404).json({ success: false, message: "no such request found" })
         }
-         res.set("Cache-Control", "public, max-age=300");
+        res.set("Cache-Control", "public, max-age=300");
         return res.status(200).json({ success: true, deleterequest })
     } catch (error) {
         console.log(error)

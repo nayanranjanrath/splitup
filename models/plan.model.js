@@ -9,7 +9,7 @@ const planschema = new Schema({
    },
    platform: {
         type: Schema.Types.ObjectId,
-        ref: "platformmodel",
+        ref: "platform",
         required: true
     },
     planname: {
