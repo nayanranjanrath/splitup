@@ -167,7 +167,7 @@ export const addplan = async (req, res) => {
 
 export const addsignindetails = async (req, res) => {
     try {
-        
+
         const token = req.cookies.accesstoken
         const { planid, platformemail, platformepassword } = req.body;
 
@@ -224,7 +224,7 @@ export const deletegrouprequest = async (req, res) => {
             return res.status(403).json({ success: false, message: "Unauthorized only admin can delete group" });
         }
         const deleterequest = await deletefinalgrouprequest.findById(groupid)
-        if (deleeterequest) {
+        if (deleterequest) {
             return res.status(404).json({ success: false, message: "you alredy send a request now wait for others to aprove this " });
         }
         const newrequest = new deletefinalgrouprequest({
@@ -381,8 +381,18 @@ export const rejectdeleterequest = async (req, res) => {
     try {
         const token = req.cookies.accesstoken
         const { groupid } = req.body
+
+
         if (!groupid) {
             return res.status(404).json({ success: false, message: "all the fields are required" })
+        }
+        console.log("GROUP ID:", groupid);
+        console.log("VALID:", mongoose.isValidObjectId(groupid));
+        if (!mongoose.isValidObjectId(groupid)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid group ID"
+            });
         }
         const userid = extractuserid(token)
         if (!userid) {
@@ -436,7 +446,7 @@ export const rejectdeleterequest = async (req, res) => {
 
 export const showdeleterequest = async (req, res) => {
     try {
-        const { groupid } = req.body
+        const { groupid } = req.params;
         if (!groupid) {
             return res.status(404).json({ success: false, message: "all the fields are required" })
         }
@@ -453,4 +463,44 @@ export const showdeleterequest = async (req, res) => {
 }
 
 
-// add the show login details of plan 
+export const showlogindetails = async(req,res)=>{
+try {
+    const tokeb =req.cookies.accesstoken
+    const planid = req.params.planid
+    if(!planid){
+        return res.status(404).json({success:false,message:"all the fields are required"})
+    }
+    if(!tokeb){
+        return res.status(403).json({success:false,message:"Unauthorized"})
+    }
+    const userid = extractuserid(tokeb)
+    if(!userid){
+        return res.status(403).json({success:false,message:"Unauthorized"})
+    }
+   const logindetails = await platformsignindetailsmodel
+    .find({ planid: planid })
+    .populate({
+        path: "planname",
+        select: "platform planname finalchatid",
+        populate: {
+            path: "finalchatid",
+            select: "groupname members "
+        }
+    });
+    if(!logindetails){
+        return res.status(404).json({success:false,message:"no logindetails found"})
+    }
+    if(logindetails.planname.finalchatid.members.some(member=>member.equals(userid._id))){
+        return res.status(401).json({success:false,message:"Unauthorized only the group meembers are allow to check the login details "})
+    }
+    const loginid=await decryptMessage(logindetails.platformemail,logindetails.mailiv,logindetails.mailauth)
+    const loginpassword = await decryptMessage(logindetails.platformpassword,logindetails.passwordiv,logindetails.passwordauth)
+
+
+
+    return res.status(200).json({success:true,loginid,loginpassword})
+} catch (error) {
+    console.log(error)
+        return res.status(500).json({ success: false, message: "internalserver error" })
+}
+}

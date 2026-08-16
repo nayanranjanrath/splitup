@@ -98,7 +98,7 @@ export const adduserdetails = async (req, res) => {
 
 export const avilibleprofilename = async (req, res) => {
     try {
-        const profilename = req.params.profilename
+        const {profilename} = req.params
         if (!profilename) {
             return res.status(400).json({ message: "Profile name is required" });
         }
