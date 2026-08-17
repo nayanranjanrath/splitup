@@ -249,7 +249,7 @@ export const deletegrouprequest = async (req, res) => {
         if (!userid) {
             return res.status(403).json({ success: false, message: "Unauthorized" });
         }
-        const group = await finalChatModel.findById(groupid).select('admin _id members')
+        const group = await finalChatModel.findById(groupid).select('admin _id members groupname')
         if (!group) {
             return res.status(404).json({ success: false, message: "no such group find " });
         }
@@ -310,7 +310,7 @@ export const acceptdeleterequest = async (req, res) => {
 
             const group = await finalChatModel
                 .findById(groupid)
-                .select("members admin _id")
+                .select("members admin _id groupname")
                 .session(session);
 
             if (!group) {
@@ -449,7 +449,7 @@ export const rejectdeleterequest = async (req, res) => {
         }
         const group = await finalChatModel
             .findById(groupid)
-            .select("members admin _id")
+            .select("members admin _id groupname")
 
 
         if (!group) {

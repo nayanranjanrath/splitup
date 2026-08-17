@@ -4,7 +4,7 @@ import reportbugmodel from "../models/reportbug.model.js";
 import usermodel from "../models/user.model.js";
 import { extractuserid } from "./controllers.js";
 import { reportusermail } from "../utility/nodemailer.js";
-
+import notificationmodel from "../models/notification.model.js";
 
 
 
@@ -72,7 +72,7 @@ export const showreports = async (req, res) => {
         if (!userid) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
-        if (userid._id !== "6a4b51ae0f1db34bcb90f56d") {
+        if (userid._id !== process.env.ADMIN_ID ) {
             return res.status(403).json({ success: false, message: "Unauthorized only admin can see reports" });
         }
 
@@ -99,7 +99,7 @@ export const showbugs = async (req, res) => {
         if (!userid) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
-        if (userid._id !== "6a4b51ae0f1db34bcb90f56d") {
+        if (userid._id !== process.env.ADMIN_ID) {
             return res.status(403).json({ success: false, message: "Unauthorized only admin can see reports" });
         }
         const bugs = await reportbugmodel.find().populate("reporter", "profilename avatar").select("-__v");
@@ -134,8 +134,10 @@ export const validatereport = async (req, res) => {
         if (!report) {
             return res.status(404).json({ success: false, message: "Report not found" });
         }
+        
         const reportedUserName = report.reporteduser.profilename;
         const reporteduseremail = report.reporter.email;
+        const reporterid = report.reporter._id;
         report.status = status;
        
        
@@ -171,6 +173,12 @@ The SplitUp Team
         if (!updatedreport) {
             return res.status(500).json({ success: false, message: "Report not updated" });
         }
+        const notification = new notificationmodel({
+            user:reporterid,
+            message: "Your report has been validated check your email for more details",
+            
+        })
+        await notification.save();
         await report.deleteOne();
         return res.status(200).json({ success: true, message: "Report validated successfully" });
 
@@ -205,6 +213,7 @@ export const validatebugs = async(req, res) => {
         }
         
         const reporteduseremail = report.reporter.email;
+        const reporterid = report.reporter._id;
         const message = `
 Hello,
 
@@ -231,7 +240,12 @@ The SplitUp Team
         if (!mail) {
             return res.status(500).json({ success: false, message: "Email not sent" });
         }
-        
+          const notification = new notificationmodel({
+            user:reporterid,
+            message: "Your bug report has been validated check your email for more details",
+            
+        })
+        await notification.save();
         return res.status(200).json({ success: true, message: "Report validated successfully" });
         
     } catch (error) {
