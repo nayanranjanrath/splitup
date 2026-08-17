@@ -7,6 +7,7 @@ import redis from "../utility/redisconnection.js"
 import platformsignindetailsmodel from "../models/platformsignindetails.model.js"
 import deletefinalgrouprequest from "../models/deletefinalgrouprequestt.model.js"
 import { encryptMessage, decryptMessage } from "../utility/messageencryption.js";
+import notificationmodel from "../models/notification.model.js"
 import mongoose from "mongoose";
 export const showalladmingroups = async (req, res) => {
     try {
@@ -42,6 +43,7 @@ export const addnewgroup = async (req, res) => {
             return res.status(403).json({ success: false, message: "Unauthorized" });
         }
         const newgroup = new finalChatModel({ admin: userid._id, groupname: groupname });
+        newgroup.members.push(userid._id)
         await newgroup.save()
         return res.status(200).json({ success: true, message: "group created successfully" })
     } catch (error) {
@@ -79,20 +81,43 @@ export const addmembers = async (req, res) => {
         if (!isMember) {
             return res.status(404).json({ success: false, message: "Unauthorized only member can add members" });
         }
-        const planexpaire = new Date(
-            request.createdAt.getTime() +
-            request.planvalidityday * 24 * 60 * 60 * 1000
+        const alreadyMember = group.members.some(member =>
+            member.equals(candidate)
         );
-        const plan = new planmodel({
-            finalchatid: groupid,
-            platform: request.platformname,
-            planname: request.planname,
-            planvalidity: request.planvalidityday,
-            expiresAt: planexpaire
-        });
-        await plan.save()
+
+        if (alreadyMember) {
+            return res.status(400).json({
+                success: false,
+                message: "User is already a member of this group"
+            });
+        }
+        const existingplan = await planmodel.findOne({ finalchatid: groupid, platform: request.platformname })
+        if (!existingplan) {
+            const planexpaire = new Date(
+                request.createdAt.getTime() +
+                request.planvalidityday * 24 * 60 * 60 * 1000
+            );
+            const plan = new planmodel({
+                finalchatid: groupid,
+                platform: request.platformname,
+                planname: request.planname,
+                planvalidity: request.planvalidityday,
+                expiresAt: planexpaire
+            });
+            await plan.save()
+        }
+
         group.members.push(candidate)
         await group.save()
+
+        const notifcation = await notificationmodel.create(
+            {
+                user: candidate,
+
+                message: `You have been successfully added to a new group: ${group.groupname}`,
+            }
+        )
+        notifcation.save()
         return res.status(200).json({ success: true, message: "group members added successfully" })
     }
 
@@ -158,6 +183,14 @@ export const addplan = async (req, res) => {
             expiresAt: expiresAt
         })
         await plan.save()
+           await Promise.all(
+            group.members.map(member =>
+                notificationmodel.create({
+                    user: member,
+                    message: `A new plan has been added to the group: ${group.groupname}`,
+                })
+            )
+        );
         return res.status(200).json({ success: true, message: "plan added successfully" })
     } catch (error) {
         console.log(error)
@@ -216,14 +249,14 @@ export const deletegrouprequest = async (req, res) => {
         if (!userid) {
             return res.status(403).json({ success: false, message: "Unauthorized" });
         }
-        const group = await finalChatModel.findById(groupid).select('admin _id')
+        const group = await finalChatModel.findById(groupid).select('admin _id members')
         if (!group) {
             return res.status(404).json({ success: false, message: "no such group find " });
         }
         if (group.admin.toString() !== userid._id.toString()) {
             return res.status(403).json({ success: false, message: "Unauthorized only admin can delete group" });
         }
-        const deleterequest = await deletefinalgrouprequest.findById(groupid)
+        const deleterequest = await deletefinalgrouprequest.findOne({ groupid: groupid })
         if (deleterequest) {
             return res.status(404).json({ success: false, message: "you alredy send a request now wait for others to aprove this " });
         }
@@ -232,6 +265,16 @@ export const deletegrouprequest = async (req, res) => {
             agreedmembers: [userid._id]
         });
         await newrequest.save()
+
+        await Promise.all(
+            group.members.map(member =>
+                notificationmodel.create({
+                    user: member,
+                    message: `there is a delete request for group: ${group.groupname}`,
+                })
+            )
+        );
+
         return res.status(200).json({ success: true, message: "group deleted request sent successfully" })
     } catch (error) {
         console.log(error)
@@ -342,7 +385,14 @@ export const acceptdeleterequest = async (req, res) => {
                 );
 
                 await deleterequest.deleteOne({ session });
-
+                await Promise.all(
+                    group.members.map(member =>
+                        notificationmodel.create({
+                            user: member,
+                            message: `delete request of group: ${group.groupname} is approved by everyone so we are removbing the group and its related data `,
+                        })
+                    )
+                );
                 await group.deleteOne({ session });
 
                 return res.status(200).json({
@@ -386,7 +436,7 @@ export const rejectdeleterequest = async (req, res) => {
         if (!groupid) {
             return res.status(404).json({ success: false, message: "all the fields are required" })
         }
-      
+
         if (!mongoose.isValidObjectId(groupid)) {
             return res.status(400).json({
                 success: false,
@@ -435,7 +485,14 @@ export const rejectdeleterequest = async (req, res) => {
             return res.status(404).json({ success: false, message: "you already approved the request" })
         }
         await deleterequest.deleteOne()
-
+           await Promise.all(
+            group.members.map(member =>
+                notificationmodel.create({
+                    user: member,
+                    message: `delete request of group: ${group.groupname} is rejected by some user so we cant delete the group `,
+                })
+            )
+        );
         return res.status(200).json({ success: true, message: "group delete request rejected successfully" })
     } catch (error) {
         console.log(error)
@@ -462,45 +519,45 @@ export const showdeleterequest = async (req, res) => {
 }
 
 
-export const showlogindetails = async(req,res)=>{
-try {
-    const tokeb =req.cookies.accesstoken
-    const planid = req.params.planid
-    if(!planid){
-        return res.status(404).json({success:false,message:"all the fields are required"})
-    }
-    if(!tokeb){
-        return res.status(403).json({success:false,message:"Unauthorized"})
-    }
-    const userid = extractuserid(tokeb)
-    if(!userid){
-        return res.status(403).json({success:false,message:"Unauthorized"})
-    }
-   const logindetails = await platformsignindetailsmodel
-    .findOne({ planname: planid })
-    .populate({
-        path: "planname",
-        select: "platform planname finalchatid",
-        populate: {
-            path: "finalchatid",
-            select: "groupname members "
+export const showlogindetails = async (req, res) => {
+    try {
+        const tokeb = req.cookies.accesstoken
+        const planid = req.params.planid
+        if (!planid) {
+            return res.status(404).json({ success: false, message: "all the fields are required" })
         }
-    });
-    console.log("logindetails",logindetails)
-    if(!logindetails){
-        return res.status(404).json({success:false,message:"no logindetails found"})
-    }
-    if(logindetails.planname.finalchatid.members.some(member=>member.equals(userid._id))){
-        return res.status(401).json({success:false,message:"Unauthorized only the group meembers are allow to check the login details "})
-    }
-    const loginid=await decryptMessage(logindetails.platformemail,logindetails.mailiv,logindetails.mailauth)
-    const loginpassword = await decryptMessage(logindetails.platformpassword,logindetails.passwordiv,logindetails.passwordauth)
+        if (!tokeb) {
+            return res.status(403).json({ success: false, message: "Unauthorized" })
+        }
+        const userid = extractuserid(tokeb)
+        if (!userid) {
+            return res.status(403).json({ success: false, message: "Unauthorized" })
+        }
+        const logindetails = await platformsignindetailsmodel
+            .findOne({ planname: planid })
+            .populate({
+                path: "planname",
+                select: "platform planname finalchatid",
+                populate: {
+                    path: "finalchatid",
+                    select: "groupname members "
+                }
+            });
+        console.log("logindetails", logindetails)
+        if (!logindetails) {
+            return res.status(404).json({ success: false, message: "no logindetails found" })
+        }
+        if (logindetails.planname.finalchatid.members.some(member => member.equals(userid._id))) {
+            return res.status(401).json({ success: false, message: "Unauthorized only the group meembers are allow to check the login details " })
+        }
+        const loginid = await decryptMessage(logindetails.platformemail, logindetails.mailiv, logindetails.mailauth)
+        const loginpassword = await decryptMessage(logindetails.platformpassword, logindetails.passwordiv, logindetails.passwordauth)
 
 
 
-    return res.status(200).json({success:true,loginid,loginpassword})
-} catch (error) {
-    console.log(error)
+        return res.status(200).json({ success: true, loginid, loginpassword })
+    } catch (error) {
+        console.log(error)
         return res.status(500).json({ success: false, message: "internalserver error" })
-}
+    }
 }
