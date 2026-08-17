@@ -63,8 +63,8 @@ router.post("/addsignindetails",addsignindetails)
 
 router.post("/deletegrouprequest",deletegrouprequest)
 router.post("/acceptdeleterequest",acceptdeleterequest)
-router.post("/rejectdeleterequest",rejectdeleterequest)  //not yet tryed 
+router.post("/rejectdeleterequest",rejectdeleterequest) 
 router.get("/showdeleterequest/:groupid",showdeleterequest)
-//done
-router.get("/showlogindetails",showlogindetails)
+router.get("/showlogindetails/:planid",showlogindetails)
+//done 
 export default router
