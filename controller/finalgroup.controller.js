@@ -11,26 +11,63 @@ import notificationmodel from "../models/notification.model.js"
 import mongoose from "mongoose";
 export const showalladmingroups = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken
+        const token = req.cookies.accesstoken;
+
         if (!token) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
-        const userid = extractuserid(token)
+
+        const userid = extractuserid(token);
+
         if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        const finalgroups = await finalChatModel.find({ admin: userid._id }).select("-createdAt -__v -admin")
-        if (!finalgroups) {
-            return res.status(404).json({ success: false, message: "no such finalgroup find " });
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
 
-        return res.status(200).json({ success: true, message: "finalgroups found", finalgroups })
+        const cursor = req.query.cursor;
+
+        const query = {
+            admin: userid._id
+        };
+
+        // Get groups after the cursor
+        if (cursor) {
+            query._id = { $gt: cursor };
+        }
+
+        const finalgroups = await finalChatModel
+            .find(query)
+            .select("-createdAt -__v -admin")
+            .sort({ _id: 1 })
+            .limit(10);
+
+        const nextCursor =
+            finalgroups.length > 0
+                ? finalgroups[finalgroups.length - 1]._id
+                : null;
+
+        return res.status(200).json({
+            success: true,
+            message: "finalgroups found",
+            finalgroups,
+            hasMore: finalgroups.length === 10,
+            nextCursor
+        });
+
     } catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
-    }
-}
+        console.log(error);
 
+        return res.status(500).json({
+            success: false,
+            message: "internal server error"
+        });
+    }
+};
 export const addnewgroup = async (req, res) => {
     try {
         const token = req.cookies.accesstoken

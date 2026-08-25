@@ -13,7 +13,7 @@ import aplicantmodel from "../models/aplicant.model.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import categorymodle from "../models/category.model.js";
 import ratingmodel from "../models/rating.model.js";
-import tempChatModel   from "../models/tempchat.model.js";
+import tempChatModel from "../models/tempchat.model.js";
 import notificationmodel from "../models/notification.model.js";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { report } from "process";
@@ -59,7 +59,7 @@ export const registeruser = async (req, res) => {
         const existinguser = await usermodel.findOne(
             { $or: [{ email: email }, { profilename: profilename }] }
         )
-        
+
         if (existinguser) {
             return res.status(400).json({ success: false, message: "User already exists" })
         }
@@ -274,7 +274,7 @@ export const platformsplitrequest = async (req, res) => {
     try {
         const token = req.cookies.accesstoken;
         const userid = extractuserid(token)
-        
+
         const requestid = req.body.requestid
         const request = await platformsharerequestmodel.findById(requestid)
         if (!request) {
@@ -295,11 +295,11 @@ export const platformsplitrequest = async (req, res) => {
                 message: "Please upload at least one proof image."
             });
         }
-       
+
         const imageToVerify = localImagePaths[0];
         const imageBuffer = fs.readFileSync(imageToVerify);
 
-       
+
         const extension = path.extname(imageToVerify).toLowerCase();
         const mimeType = extension === '.png' ? 'image/png' :
             (extension === '.webp' ? 'image/webp' : 'image/jpeg');
@@ -561,36 +561,91 @@ export const createcategory = async (req, res) => {
 
 export const showallplatform = async (req, res) => {
     try {
-        const data = await redis.get("allplatform");
-        if (data) {
-            return res.status(200).json({ success: true, message: "All platform", allplatform: JSON.parse(data) });
+        const cursor = req.query.cursor;
+        const limit = 10;
+
+        const query = {};
+
+        if (cursor) {
+            query._id = { $gt: cursor };
         }
 
-        const allplatform = await platformmodel.find().select("-platformdescription -createdAt -__v").lean();
-        await redis.set("allplatform", JSON.stringify(allplatform), "EX", 3600);
-        return res.status(200).json({ success: true, message: "All platform", allplatform });
+        const allplatform = await platformmodel
+            .find(query)
+            .select("-platformdescription -createdAt -__v")
+            .sort({ _id: 1 })
+            .limit(limit)
+            .lean();
+
+        const nextCursor =
+            allplatform.length > 0
+                ? allplatform[allplatform.length - 1]._id
+                : null;
+
+        res.set(
+            "Cache-Control",
+            "private, max-age=3600"
+        );
+        return res.status(200).json({
+            success: true,
+            message: "All platform",
+            allplatform,
+            hasMore: allplatform.length === limit,
+            nextCursor
+        });
+
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "internalserver error" })
-    }
-}
 
+        return res.status(500).json({
+            success: false,
+            message: "internal server error"
+        });
+    }
+};
 export const showallcategory = async (req, res) => {
     try {
-        const data = await redis.get("allcategory");
-        if (data) {
-            return res.status(200).json({ success: true, message: "All category", allcategory: JSON.parse(data) });
+        const cursor = req.query.cursor;
+        const limit = 10;
+
+        const query = {};
+
+        if (cursor) {
+            query._id = { $gt: cursor };
         }
 
-        const allcategory = await categorymodle.find().select("-createdAt -__v -platform").lean();
-        await redis.set("allcategory", JSON.stringify(allcategory), "EX", 3600);
-        return res.status(200).json({ success: true, message: "All category", allcategory });
+        const allcategory = await categorymodle
+            .find(query)
+            .select("-createdAt -__v -platform")
+            .sort({ _id: 1 })
+            .limit(limit)
+            .lean();
+
+        const nextCursor =
+            allcategory.length > 0
+                ? allcategory[allcategory.length - 1]._id
+                : null;
+         res.set(
+            "Cache-Control",
+            "private, max-age=3600"
+        );
+        return res.status(200).json({
+            success: true,
+            message: "All category",
+            allcategory,
+            hasMore: allcategory.length === limit,
+            nextCursor
+        });
+
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "internalserver error" })
-    }
-}
 
+        return res.status(500).json({
+            success: false,
+            message: "internal server error"
+        });
+    }
+};
 export const detailsofplatform = async (req, res) => {
     try {
         const platformid = req.params.platformid
@@ -971,7 +1026,7 @@ export const applyforrequest = async (req, res) => {
         }
         requestaplicant.applicant.push(userid._id);
         await requestaplicant.save();
-       
+
         return res.status(200).json({ success: true, message: "Applied for request successfully" });
 
 
@@ -1034,13 +1089,13 @@ export const acceptapplicant = async (req, res) => {
             request.status = "full"
         }
         await request.save();
-         const tempmessage = await tempChatModel.findOne({ request: requestid });
+        const tempmessage = await tempChatModel.findOne({ request: requestid });
         if (!tempmessage) {
             await tempChatModel.create({ request: requestid });
         }
-        const notification = await notificationmodel.create({ user: aplicantid, message: "You have been accepted for"+request.platformname+" request",  });
-            
-        
+        const notification = await notificationmodel.create({ user: aplicantid, message: "You have been accepted for" + request.platformname + " request", });
+
+
         return res.status(200).json({ success: true, message: "Applicant accepted successfully" });
     } catch (error) {
         console.log(error);
