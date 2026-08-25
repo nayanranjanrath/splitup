@@ -14,7 +14,7 @@ import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import categorymodle from "../models/category.model.js";
 import ratingmodel from "../models/rating.model.js";
 import tempChatModel   from "../models/tempchat.model.js";
-
+import notificationmodel from "../models/notification.model.js";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { report } from "process";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -192,7 +192,7 @@ export const loginuser = async (req, res) => {
         sameSite: "none",
         maxAge: 10 * 24 * 60 * 60 * 1000,
     }
-
+    const notification = await notificationmodel.create({ user: user._id, message: "wellcome to splitup" })
     return res.status(200).cookie("accesstoken", accesstoken, options).cookie("refreshtoken", refreshtoken, options).json({ success: true, message: "User logged in successfully", user })
 
 
@@ -295,11 +295,11 @@ export const platformsplitrequest = async (req, res) => {
                 message: "Please upload at least one proof image."
             });
         }
-        //------------image check with ai stats from here --------
+       
         const imageToVerify = localImagePaths[0];
         const imageBuffer = fs.readFileSync(imageToVerify);
 
-        // Determine mime type based on file extension
+       
         const extension = path.extname(imageToVerify).toLowerCase();
         const mimeType = extension === '.png' ? 'image/png' :
             (extension === '.webp' ? 'image/webp' : 'image/jpeg');
@@ -381,6 +381,8 @@ export const platformsplitrequest = async (req, res) => {
                 }
             }
             // You can use the AI's reasoning to give the user a helpful error message!
+
+            const notification = await notificationmodel.create({ user: userid._id, message: "Your proof image  was rejected due to the following reason: " + verificationData.reasoning })
             return res.status(400).json({
                 success: false,
                 message: `Verification failed: ${verificationData.reasoning} Please ensure your screenshot clearly shows your active subscription, paid library, or premium badges.`
@@ -417,7 +419,7 @@ export const platformsplitrequest = async (req, res) => {
 
         const savedrequest = await request.save();
 
-
+        const successnotification = await notificationmodel.create({ user: userid._id, message: "you have successfully created a new request" })
         return res.status(200).json({ success: true, message: "Request submitted successfully", savedrequest });
 
 
@@ -1036,6 +1038,9 @@ export const acceptapplicant = async (req, res) => {
         if (!tempmessage) {
             await tempChatModel.create({ request: requestid });
         }
+        const notification = await notificationmodel.create({ user: aplicantid, message: "You have been accepted for"+request.platformname+" request",  });
+            
+        
         return res.status(200).json({ success: true, message: "Applicant accepted successfully" });
     } catch (error) {
         console.log(error);
