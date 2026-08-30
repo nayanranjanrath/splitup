@@ -2,9 +2,10 @@ import express from "express"
 import { ratelimiter } from "../middlewares/redisratelimiter.js";
 const router = express.Router();
 
-import { registeruser,verifyuser,loginuser,revalidateuser,logoutuser,platformsplitrequest,selectplatform,createplatform ,selectcategory,createcategory,showallplatform,showallcategory,detailsofplatform,showprofile,rateuser,showreviews,editrating,showrequest,applyforrequest,showapplicants,acceptapplicant,showrequeststatus,removeapplicant,deleterequest,myrequest,myapply}  from "../controller/controllers.js";
+import { registeruser,getuseravatar,verifyuser,loginuser,revalidateuser,logoutuser,platformsplitrequest,selectplatform,createplatform ,selectcategory,createcategory,showallplatform,showallcategory,detailsofplatform,showprofile,rateuser,showreviews,editrating,showrequest,applyforrequest,showapplicants,acceptapplicant,showrequeststatus,removeapplicant,deleterequest,myrequest,myapply}  from "../controller/controllers.js";
 import {reportuser,reportabug,showreports,showbugs,validatereport,validatebugs}from "../controller/report.controller.js"
 import {avatarUpload,postUpload} from "../middlewares/multer.js"
+import{getunsceenfinalgroupmessaeg,numberofunsceenmsginfinalgroup,showoldmessage}from "../controller/chat.controller.js"
 import{showallgroup, sendpaymentproof,aproveusers,rejectusers,showallproofimage}from "../controller/tempgroup.controller.js"
 import {googleAuth,adduserdetails,avilibleprofilename} from "../controller/googleauth.controller.js"
 import{showalladmingroups,addnewgroup,addmembers,selectplatformtofinalgroup,addplan,addsignindetails,deletegrouprequest,acceptdeleterequest,rejectdeleterequest,showdeleterequest,showlogindetails}from "../controller/finalgroup.controller.js"
@@ -17,6 +18,7 @@ import { fromArrayBufferToHex } from "google-auth-library/build/src/crypto/share
  router.post("/verifyuser",verifyuser)
  router.post("/login",loginuser)
  router.post("/revalidateuser",revalidateuser)
+router.get("/getuseravatar",getuseravatar)
  router.post("/logoutuser",logoutuser)
  router.post("/platformsplit",postUpload.array("proofimages",2),platformsplitrequest)
  router.post("/selectplatform",selectplatform)
@@ -67,4 +69,9 @@ router.post("/rejectdeleterequest",rejectdeleterequest)
 router.get("/showdeleterequest/:groupid",showdeleterequest)
 router.get("/showlogindetails/:planid",showlogindetails)
 //done 
+router.get("/getnotification",getnotification)
+router.get("/getnotificationcount",getnotificationcount)
+router.get("/getunsceenfinalgroupmessaeg/:groupid",getunsceenfinalgroupmessaeg)
+router.get("/numberofunsceenmsginfinalgroup/:groupid",numberofunsceenmsginfinalgroup)
+router.get("/showoldmessage/:groupid",showoldmessage)
 export default router

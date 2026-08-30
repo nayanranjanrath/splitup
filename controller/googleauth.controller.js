@@ -59,7 +59,7 @@ export const googleAuth = async (req, res) => {
             maxAge: 10 * 24 * 60 * 60 * 1000,
         }
 
-        return res.status(200).cookie("accesstoken", accesstoken, options).cookie("refreshtoken", refreshtoken, options).json({ success: true, message: "User logged in successfully", user })
+        return res.status(200).cookie("accesstoken", accesstoken, options).cookie("refreshtoken", refreshtoken, options).json({ success: true, message: "User registered successfully", user })
 
     } catch (error) {
         console.error(error);

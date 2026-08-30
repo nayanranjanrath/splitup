@@ -236,7 +236,18 @@ export const revalidateuser = async (req, res) => {
         return res.status(500).json({ success: false, message: "Internal server error" })
     }
 }
-
+export const getuseravatar = async (req, res) => {
+      const token = req.cookies.accesstoken;
+        const userid = extractuserid(token)
+        if (!userid) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+        const user = await usermodel.findById(userid._id).select("avatar profilename");
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        return res.status(200).json({ success: true, message: "User avatar found", user })
+}
 
 export const logoutuser = async (req, res) => {
     try {
@@ -807,7 +818,7 @@ export const editrating = async (req, res) => {
         return res.status(500).json({ success: false, message: "Internal server error" });
     }
 }
-
+// search controller ----
 export const showrequest = async (req, res) => {
     //use req.query  for all the fields like category minprise maxprise maxmember minmember etc and the searchtext which is the text by user 
     //use the aggregate function to match searchtext either with platform or user 
@@ -1040,24 +1051,63 @@ export const applyforrequest = async (req, res) => {
 export const showapplicants = async (req, res) => {
     try {
         const token = req.cookies.accesstoken;
+
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
+        }
+
         const userid = extractuserid(token);
-        res.set("Cache-Control", "public, max-age=600");
+
         if (!userid) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
+
         const { requestid } = req.params;
-        const aplicatnt = await aplicantmodel.findOne({ request: requestid }).populate("applicant", "profilename avatar reting").select("-__v -request -platformname -status -createdAt");
-        if (!aplicatnt) {
-            return res.status(404).json({ success: false, message: "No applicants found for this request" });
+
+        const page = parseInt(req.query.page) || 1;
+        const limit = 10;
+        const skip = (page - 1) * limit;
+
+        const applicant = await aplicantmodel
+            .findOne({ request: requestid })
+            .populate("applicant", "profilename avatar reting")
+            .select("-__v -request -platformname -status -createdAt");
+
+        if (!applicant) {
+            return res.status(404).json({
+                success: false,
+                message: "No applicants found for this request"
+            });
         }
-        res.set("Cache-Control", "public, max-age=300");
-        return res.status(200).json({ success: true, message: "Applicants found", aplicatnt });
+
+        const applicants = applicant.applicant.slice(
+            skip,
+            skip + limit
+        );
+        res.set("Cache-Control", "private, max-age=300");
+        return res.status(200).json({
+            success: true,
+            message: "Applicants found",
+            applicants,
+            page,
+            hasMore: skip + limit < applicant.applicant.length
+        });
+
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
-    }
-}
 
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+};
 export const acceptapplicant = async (req, res) => {
     try {
         const token = req.cookies.accesstoken;
