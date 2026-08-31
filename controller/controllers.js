@@ -1245,7 +1245,7 @@ export const myrequest = async (req, res) => {
         if (!userid) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
-        const requests = await platformsharerequestmodel.find({ requister: userid._id }).select("-__v   -createdAt  -requister -proofimage -planvalidityday").populate("members", "profilename ");
+        const requests = await platformsharerequestmodel.find({ requister: userid._id }).select("-__v   -createdAt  -requister -proofimage -planvalidityday").populate("members", "profilename avatar");
         if (!requests) {
             return res.status(404).json({ success: false, message: "No requests found" });
         }

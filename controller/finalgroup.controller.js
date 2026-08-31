@@ -9,6 +9,7 @@ import deletefinalgrouprequest from "../models/deletefinalgrouprequestt.model.js
 import { encryptMessage, decryptMessage } from "../utility/messageencryption.js";
 import notificationmodel from "../models/notification.model.js"
 import mongoose from "mongoose";
+import tempChatModel from "../models/tempchat.model.js";
 export const showalladmingroups = async (req, res) => {
     try {
         const token = req.cookies.accesstoken;
@@ -117,6 +118,16 @@ export const addmembers = async (req, res) => {
         );
         if (!isMember) {
             return res.status(404).json({ success: false, message: "Unauthorized only member can add members" });
+        }
+        const tempgroup = await tempChatModel.findone({request:request.tempchatid})
+        if (!tempgroup) {
+            return res.status(404).json({ success: false, message: "no such group find " });
+        }
+        const paiduser = tempgroup.paidusers.some(user =>
+            user.equals(candidate)
+        );
+        if (!paiduser) {
+            return res.status(404).json({ success: false, message: "Unauthorized only paid user can added to  members so first aprove the users proof imaege" });
         }
         const alreadyMember = group.members.some(member =>
             member.equals(candidate)

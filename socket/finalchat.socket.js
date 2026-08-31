@@ -1,6 +1,6 @@
 import finalChatModel from "../models/finalchat.model.js";
 import { encryptMessage, decryptMessage } from "../utility/messageencryption.js";
-
+import lastsceenmodel from "../models/lastsceen.controller.js";
 
 export default function registerRequestChat(io, socket) {
 
@@ -134,8 +134,14 @@ export default function registerRequestChat(io, socket) {
         }
     });
 
-    socket.on("disconnect", () => {
-
+    socket.on("disconnect", async () => {
+        const existinglastsceen = await lastsceenmodel.findOne({ user: socket.userId , finalgroup: socket.currentRoom });
+        if (existinglastsceen) {
+            existinglastsceen.updatedAt = Date.now();
+        }
+        else {
+            await lastsceenmodel.create({ user: socket.userId, finalgroup: socket.currentRoom });
+        }
         console.log(socket.id, "left");
 
     });

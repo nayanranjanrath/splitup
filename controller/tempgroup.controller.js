@@ -131,9 +131,16 @@ export const aproveusers = async (req, res) => {
         if (payment.request.requister.toString() !== userid._id.toString()) {
             return res.status(403).json({ success: false, message: "Unauthorized only requester can aprove users" });
         }
+        const group = await tempChatModel.findone({request:payment.request})
+        if (!group) {
+            return res.status(404).json({ success: false, message: "no such group find " });
+        }
 
         payment.status = "approved"
         await payment.save()
+        group.paidUsers.push(payment.user)
+     await group.save()
+        
         return res.status(200).json({ success: true, message: "payment proof approved successfully" })
 
     } catch (error) {

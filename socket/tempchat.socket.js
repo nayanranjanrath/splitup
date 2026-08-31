@@ -147,8 +147,14 @@ export default function registerRequestChat(io, socket) {
         }
     });
 
-    socket.on("disconnect", () => {
-
+    socket.on("disconnect", async () => {
+          const existinglastsceen = await lastsceenmodel.findOne({ user: socket.userId , tempgroup: socket.currentRoom });
+        if (existinglastsceen) {
+            existinglastsceen.updatedAt = Date.now();
+        }
+        else {
+            await lastsceenmodel.create({ user: socket.userId, tempgroup: socket.currentRoom });
+        }
         console.log(socket.id, "left");
 
     });
