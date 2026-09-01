@@ -3,9 +3,14 @@ import finalmessageModel from "../models/finalgroupmessage.model";
 import finalChatModel from "../models/finalchat.model";
 import tempChatModel from "../models/tempchat.model";
 import messageModel from "../models/message.model";
-import { extractuserid } from "./controllers.js"
+import platformsharerequestmodel from "../models/platformsharerequest.model";
+import { extractuserid } from "./controllers.js";
+import { decryptMessage } from "../utility/messageencryption.js";
 
 
+// ============================================================
+// GET UNSEEN MESSAGES FROM FINAL GROUP
+// ============================================================
 
 export const getunsceenfinalgroupmessaeg = async (req, res) => {
     try {
@@ -66,7 +71,6 @@ export const getunsceenfinalgroupmessaeg = async (req, res) => {
         let lastsceentime;
 
         if (!lastsceen) {
-            
             lastsceentime = new Date(0);
         } else {
             lastsceentime = lastsceen.updatedAt;
@@ -79,7 +83,6 @@ export const getunsceenfinalgroupmessaeg = async (req, res) => {
             }
         };
 
-        
         if (cursor) {
             query._id = {
                 $gt: cursor
@@ -89,16 +92,29 @@ export const getunsceenfinalgroupmessaeg = async (req, res) => {
         const unsceenmessage = await finalmessageModel
             .find(query)
             .sort({ _id: 1 })
-            .limit(30);
+            .limit(30)
+            .lean();
 
         const nextCursor =
             unsceenmessage.length > 0
                 ? unsceenmessage[unsceenmessage.length - 1]._id
                 : null;
 
+        // Decrypt messages before sending them to frontend
+        const decryptedMessages = unsceenmessage.map(message => ({
+            _id: message._id,
+            sender: message.sender,
+            message: decryptMessage(
+                message.encryptedmessage,
+                message.iv,
+                message.authTag
+            ),
+            createdAt: message.createdAt
+        }));
+
         return res.status(200).json({
             success: true,
-            messages: unsceenmessage,
+            messages: decryptedMessages,
             hasMore: unsceenmessage.length === 30,
             nextCursor
         });
@@ -112,35 +128,76 @@ export const getunsceenfinalgroupmessaeg = async (req, res) => {
         });
     }
 };
+
+
+// ============================================================
+// NUMBER OF UNSEEN MESSAGES IN FINAL GROUP
+// ============================================================
+
 export const numberofunsceenmsginfinalgroup = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken
-        const groupid = req.params.groupid
+        const token = req.cookies.accesstoken;
+        const groupid = req.params.groupid;
+
         if (!groupid) {
-            return res.status(404).json({ success: false, message: "all the fields are required" })
+            return res.status(404).json({
+                success: false,
+                message: "all the fields are required"
+            });
         }
+
         if (!token) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
-        const userid = extractuserid(token)
+
+        const userid = extractuserid(token);
+
         if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
-        const last = await lastsceenmodel.findOne({ user: userid._id, finalgroup: groupid })
-        const lastsceentime = last.updatedAt
+
+        const last = await lastsceenmodel.findOne({
+            user: userid._id,
+            finalgroup: groupid
+        });
+
+        // If there is no last-seen record, consider all messages unseen
+        const lastsceentime = last
+            ? last.updatedAt
+            : new Date(0);
+
         const unseenmessage = await finalmessageModel.countDocuments({
             groupid: groupid,
-            createdAt: { $gt: lastsceentime }
-        })
-        if (!unsceenmessage) {
-            return res.status(200).json({ success: false, message: "no unsceen message find " });
-        }
-        return res.status(200).json({ success: true, message: unsceenmessage });
+            createdAt: {
+                $gt: lastsceentime
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: unseenmessage
+        });
+
     } catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "internal server error"
+        });
     }
-}
+};
+
+
+// ============================================================
+// SHOW OLD MESSAGES FROM FINAL GROUP
+// ============================================================
 
 export const showoldmessage = async (req, res) => {
     try {
@@ -196,22 +253,38 @@ export const showoldmessage = async (req, res) => {
         const messages = await finalmessageModel
             .find({
                 groupid,
-                _id: { $lt: cursor }
+                _id: {
+                    $lt: cursor
+                }
             })
             .sort({ _id: -1 })
-            .limit(30);
+            .limit(30)
+            .lean();
 
         const nextCursor =
             messages.length > 0
                 ? messages[messages.length - 1]._id
                 : null;
 
-       
-        messages.reverse();
+        // Decrypt messages
+        const decryptedMessages = messages.map(message => ({
+            _id: message._id,
+            sender: message.sender,
+            message: decryptMessage(
+                message.encryptedmessage,
+                message.iv,
+                message.authTag
+            ),
+            createdAt: message.createdAt
+        }));
+
+        // We fetched newest -> oldest.
+        // Reverse so frontend receives oldest -> newest.
+        decryptedMessages.reverse();
 
         return res.status(200).json({
             success: true,
-            messages,
+            messages: decryptedMessages,
             hasMore: messages.length === 30,
             nextCursor
         });
@@ -227,7 +300,9 @@ export const showoldmessage = async (req, res) => {
 };
 
 
-
+// ============================================================
+// GET UNSEEN MESSAGES FROM TEMP GROUP
+// ============================================================
 
 export const getunsceentempgroupmessaeg = async (req, res) => {
     try {
@@ -238,7 +313,7 @@ export const getunsceentempgroupmessaeg = async (req, res) => {
         if (!requestid) {
             return res.status(400).json({
                 success: false,
-                message: "groupid is required"
+                message: "requestid is required"
             });
         }
 
@@ -280,6 +355,24 @@ export const getunsceentempgroupmessaeg = async (req, res) => {
             });
         }
 
+        /*
+         * requestid is the platform share request ID.
+         * messageModel.room stores the tempChatModel ID,
+         * so first find the temp chat.
+         */
+        const tempGroup = await tempChatModel
+            .findOne({
+                request: requestid
+            })
+            .select("_id");
+
+        if (!tempGroup) {
+            return res.status(404).json({
+                success: false,
+                message: "No temporary group found"
+            });
+        }
+
         const lastsceen = await lastsceenmodel.findOne({
             user: userid._id,
             tempgroup: requestid
@@ -288,20 +381,18 @@ export const getunsceentempgroupmessaeg = async (req, res) => {
         let lastsceentime;
 
         if (!lastsceen) {
-            
             lastsceentime = new Date(0);
         } else {
             lastsceentime = lastsceen.updatedAt;
         }
 
         const query = {
-            room: groupid,
+            room: tempGroup._id,
             createdAt: {
                 $gt: lastsceentime
             }
         };
 
-        
         if (cursor) {
             query._id = {
                 $gt: cursor
@@ -311,16 +402,29 @@ export const getunsceentempgroupmessaeg = async (req, res) => {
         const unsceenmessage = await messageModel
             .find(query)
             .sort({ _id: 1 })
-            .limit(30);
+            .limit(30)
+            .lean();
 
         const nextCursor =
             unsceenmessage.length > 0
                 ? unsceenmessage[unsceenmessage.length - 1]._id
                 : null;
 
+        // Decrypt messages before sending them to frontend
+        const decryptedMessages = unsceenmessage.map(message => ({
+            _id: message._id,
+            sender: message.sender,
+            message: decryptMessage(
+                message.encryptedmessage,
+                message.iv,
+                message.authTag
+            ),
+            createdAt: message.createdAt
+        }));
+
         return res.status(200).json({
             success: true,
-            messages: unsceenmessage,
+            messages: decryptedMessages,
             hasMore: unsceenmessage.length === 30,
             nextCursor
         });
@@ -336,36 +440,90 @@ export const getunsceentempgroupmessaeg = async (req, res) => {
 };
 
 
+// ============================================================
+// NUMBER OF UNSEEN MESSAGES IN TEMP GROUP
+// ============================================================
+
 export const numberofunsceenmsgintempgroup = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken
+        const token = req.cookies.accesstoken;
         const requestid = req.params.requestid;
+
         if (!requestid) {
-            return res.status(400).json({ success: false, message: "all the fields are required" })
+            return res.status(400).json({
+                success: false,
+                message: "all the fields are required"
+            });
         }
-        const groupid = requestid
+
         if (!token) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
-        const userid = extractuserid(token)
+
+        const userid = extractuserid(token);
+
         if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
-        const last = await lastsceenmodel.findOne({ user: userid._id, tempgroup: groupid })
-        const lastsceentime = last.updatedAt
+
+        /*
+         * requestid is the request ID,
+         * so get the temp chat first.
+         */
+        const tempGroup = await tempChatModel
+            .findOne({
+                request: requestid
+            })
+            .select("_id");
+
+        if (!tempGroup) {
+            return res.status(404).json({
+                success: false,
+                message: "No temporary group found"
+            });
+        }
+
+        const last = await lastsceenmodel.findOne({
+            user: userid._id,
+            tempgroup: requestid
+        });
+
+        const lastsceentime = last
+            ? last.updatedAt
+            : new Date(0);
+
         const unseenmessage = await messageModel.countDocuments({
-            room: groupid,
-            createdAt: { $gt: lastsceentime }
-        })
-        if (!unseenmessage) {
-            return res.status(200).json({ success: false, message: "no unsceen message find " });
-        }
-        return res.status(200).json({ success: true, message: unseenmessage });
+            room: tempGroup._id,
+            createdAt: {
+                $gt: lastsceentime
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: unseenmessage
+        });
+
     } catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "internal server error"
+        });
     }
-}
+};
+
+
+// ============================================================
+// SHOW OLD MESSAGES FROM TEMP GROUP
+// ============================================================
 
 export const showoldmessageoftempgroup = async (req, res) => {
     try {
@@ -398,7 +556,7 @@ export const showoldmessageoftempgroup = async (req, res) => {
 
         const group = await platformsharerequestmodel
             .findById(groupid)
-            .select("members admin _id groupname");
+            .select("members requister _id platformname");
 
         if (!group) {
             return res.status(404).json({
@@ -418,25 +576,58 @@ export const showoldmessageoftempgroup = async (req, res) => {
             });
         }
 
-        const messages = await finalmessageModel
+        /*
+         * groupid here is actually requestid.
+         * messageModel.room contains tempChatModel._id,
+         * so get the temp chat first.
+         */
+        const tempGroup = await tempChatModel
+            .findOne({
+                request: groupid
+            })
+            .select("_id");
+
+        if (!tempGroup) {
+            return res.status(404).json({
+                success: false,
+                message: "No temporary group found"
+            });
+        }
+
+        const messages = await messageModel
             .find({
-                groupid,
-                _id: { $lt: cursor }
+                room: tempGroup._id,
+                _id: {
+                    $lt: cursor
+                }
             })
             .sort({ _id: -1 })
-            .limit(30);
+            .limit(30)
+            .lean();
 
         const nextCursor =
             messages.length > 0
                 ? messages[messages.length - 1]._id
                 : null;
 
-       
-        messages.reverse();
+        // Decrypt messages
+        const decryptedMessages = messages.map(message => ({
+            _id: message._id,
+            sender: message.sender,
+            message: decryptMessage(
+                message.encryptedmessage,
+                message.iv,
+                message.authTag
+            ),
+            createdAt: message.createdAt
+        }));
+
+        // Oldest -> newest for frontend
+        decryptedMessages.reverse();
 
         return res.status(200).json({
             success: true,
-            messages,
+            messages: decryptedMessages,
             hasMore: messages.length === 30,
             nextCursor
         });
@@ -450,4 +641,3 @@ export const showoldmessageoftempgroup = async (req, res) => {
         });
     }
 };
-
