@@ -5,9 +5,10 @@ const router = express.Router();
 import { registeruser,getuseravatar,verifyuser,loginuser,revalidateuser,logoutuser,platformsplitrequest,selectplatform,createplatform ,selectcategory,createcategory,showallplatform,showallcategory,detailsofplatform,showprofile,rateuser,showreviews,editrating,showrequest,applyforrequest,showapplicants,acceptapplicant,showrequeststatus,removeapplicant,deleterequest,myrequest,myapply}  from "../controller/controllers.js";
 import {reportuser,reportabug,showreports,showbugs,validatereport,validatebugs}from "../controller/report.controller.js"
 import {avatarUpload,postUpload} from "../middlewares/multer.js"
-import{getunsceenfinalgroupmessaeg,numberofunsceenmsginfinalgroup,showoldmessage}from "../controller/chat.controller.js"
+import{getunsceenfinalgroupmessaeg,numberofunsceenmsginfinalgroup,showoldmessage,getunsceentempgroupmessaeg,numberofunsceenmsgintempgroup,showoldmessageoftempgroup }from "../controller/chat.controller.js"
 import{showallgroup, sendpaymentproof,aproveusers,rejectusers,showallproofimage}from "../controller/tempgroup.controller.js"
 import {googleAuth,adduserdetails,avilibleprofilename} from "../controller/googleauth.controller.js"
+import { getnotification,getnotificationcount } from "../controller/notification.controller.js"
 import{showalladmingroups,addnewgroup,addmembers,selectplatformtofinalgroup,addplan,addsignindetails,deletegrouprequest,acceptdeleterequest,rejectdeleterequest,showdeleterequest,showlogindetails}from "../controller/finalgroup.controller.js"
 import { fromArrayBufferToHex } from "google-auth-library/build/src/crypto/shared.js";
 
@@ -74,4 +75,7 @@ router.get("/getnotificationcount",getnotificationcount)
 router.get("/getunsceenfinalgroupmessaeg/:groupid",getunsceenfinalgroupmessaeg)
 router.get("/numberofunsceenmsginfinalgroup/:groupid",numberofunsceenmsginfinalgroup)
 router.get("/showoldmessage/:groupid",showoldmessage)
+router.get("/getunsceentempgroupmessaeg/:groupid",getunsceentempgroupmessaeg)
+router.get("/numberofunsceenmsgintempgroup/:groupid",numberofunsceenmsgintempgroup)
+router.get("/showoldmessageoftempgroup/:groupid",showoldmessageoftempgroup)
 export default router
