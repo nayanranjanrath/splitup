@@ -2,7 +2,7 @@ import express from "express"
 import { ratelimiter } from "../middlewares/redisratelimiter.js";
 const router = express.Router();
 
-import { registeruser,getuseravatar,verifyuser,loginuser,revalidateuser,logoutuser,platformsplitrequest,selectplatform,createplatform ,selectcategory,createcategory,showallplatform,showallcategory,detailsofplatform,showprofile,rateuser,showreviews,editrating,showrequest,applyforrequest,showapplicants,acceptapplicant,showrequeststatus,removeapplicant,deleterequest,myrequest,myapply}  from "../controller/controllers.js";
+import { registeruser,getuseravatar,verifyuser,loginuser,revalidateuser,logoutuser,platformsplitrequest,selectplatform,createplatform ,selectcategory,createcategory,showallplatform,showallcategory,detailsofplatform,showprofile,rateuser,showreviews,editrating,showrequest,applyforrequest,showapplicants,acceptapplicant,showrequeststatus,removeapplicant,deleterequest,myrequest,myapply,showalredyratedornot}  from "../controller/controllers.js";
 import {reportuser,reportabug,showreports,showbugs,validatereport,validatebugs}from "../controller/report.controller.js"
 import {avatarUpload,postUpload} from "../middlewares/multer.js"
 import{getunsceenfinalgroupmessaeg,numberofunsceenmsginfinalgroup,showoldmessage,getunsceentempgroupmessaeg,numberofunsceenmsgintempgroup,showoldmessageoftempgroup }from "../controller/chat.controller.js"
@@ -34,6 +34,7 @@ router.get("/getuseravatar",getuseravatar)
  router.get("/detailsofplatform/:platformid",detailsofplatform)
  router.get("/showprofile/:userid",showprofile)
  router.get("/showreviews/:userid",showreviews)
+ router.get("/showalredyratedornot/:rateduserid",showalredyratedornot)
  router.get("/showrequest",showrequest) 
  router.get("/showapplicants/:requestid",showapplicants)
  router.get("/showrequeststatus/:requestid",showrequeststatus)

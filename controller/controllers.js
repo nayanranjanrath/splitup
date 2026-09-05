@@ -765,8 +765,88 @@ export const rateuser = async (req, res) => {
         return res.status(500).json({ success: false, message: "internalserver error" })
 
     }
-}
+};
+export const showalredyratedornot = async(req,res)=>{
+       try {
+        const token = req.cookies.accesstoken;
+        const { rateduserid } = req.params;
 
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
+        }
+
+        if (!rateduserid) {
+            return res.status(400).json({
+                success: false,
+                message: "Rated user ID is required"
+            });
+        }
+
+        if (!mongoose.isValidObjectId(rateduserid)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid rated user ID"
+            });
+        }
+
+        const userid = extractuserid(token);
+
+        if (!userid) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
+        }
+
+       
+        if (userid._id.toString() === rateduserid.toString()) {
+            return res.status(400).json({
+                success: false,
+                message: "You cannot rate yourself"
+            });
+        }
+
+        const rateduser = await usermodel.findById(rateduserid);
+
+        if (!rateduser) {
+            return res.status(404).json({
+                success: false,
+                message: "Rated user not found"
+            });
+        }
+
+        const existingrating = await ratingmodel.findOne({
+            user: rateduserid,
+            rater: userid._id
+        });
+
+        if (existingrating) {
+            return res.status(200).json({
+                success: true,
+                canRate: false,
+                message: "You already rated this user",
+                existingrating
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            canRate: true,
+            message: "You can add rating"
+        });
+
+    } catch (error) {
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+}
 
 export const showreviews = async (req, res) => {
     try {
