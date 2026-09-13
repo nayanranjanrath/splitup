@@ -12,44 +12,44 @@ import { getnotification,getnotificationcount } from "../controller/notification
 import{showalladmingroups,addnewgroup,addmembers,selectplatformtofinalgroup,addplan,addsignindetails,deletegrouprequest,acceptdeleterequest,rejectdeleterequest,showdeleterequest,showlogindetails}from "../controller/finalgroup.controller.js"
 import { fromArrayBufferToHex } from "google-auth-library/build/src/crypto/shared.js";
 
- router.post("/register",avatarUpload.single("avatar"),registeruser)
- router.post("/googleauth",googleAuth)
- router.post("/adduserdetails",adduserdetails)
- router.get("/avilibleprofilename/:profilename",avilibleprofilename)
- router.post("/verifyuser",verifyuser)
- router.post("/login",loginuser)
- router.post("/revalidateuser",revalidateuser)
-router.get("/getuseravatar",getuseravatar)
- router.post("/logoutuser",logoutuser)
- router.post("/platformsplit",postUpload.array("proofimages",2),platformsplitrequest)
- router.post("/selectplatform",selectplatform)
- router.post("/createplatform",createplatform)
- router.post("/selectcategory",selectcategory)
- router.post("/createcategory",createcategory)
- router.post("/rateuser",rateuser)
- router.post("/editrating",editrating)
+ router.post("/register",avatarUpload.single("avatar"),registeruser)   //done
+ router.post("/googleauth",googleAuth)  //done
+ router.post("/adduserdetails",adduserdetails)  //done
+ router.get("/avilibleprofilename/:profilename",avilibleprofilename)  //done
+ router.post("/verifyuser",verifyuser)  //done
+ router.post("/login",loginuser) //done
+ router.post("/revalidateuser",revalidateuser)  //done
+router.get("/getuseravatar",getuseravatar)   //done
+ router.post("/logoutuser",logoutuser) //done 
+ router.post("/platformsplit",postUpload.array("proofimages",2),platformsplitrequest) //done
+ router.post("/selectplatform",selectplatform) //done
+ router.post("/createplatform",createplatform) //done
+ router.post("/selectcategory",selectcategory) //done
+ router.post("/createcategory",createcategory) //done
+ router.post("/rateuser",rateuser) //done
+ router.post("/editrating",editrating)  //done
  router.post("/applyforrequest",applyforrequest)
- router.get("/showallcategory",showallcategory)
- router.get("/showallplatform",showallplatform)
+ router.get("/showallcategory",showallcategory) //done
+ router.get("/showallplatform",showallplatform) //done
  router.get("/detailsofplatform/:platformid",detailsofplatform)
- router.get("/showprofile/:userid",showprofile)
- router.get("/showreviews/:userid",showreviews)
- router.get("/showalredyratedornot/:rateduserid",showalredyratedornot)
- router.get("/showrequest",showrequest) 
- router.get("/showapplicants/:requestid",showapplicants)
- router.get("/showrequeststatus/:requestid",showrequeststatus)
+ router.get("/showprofile/:userid",showprofile) //done
+ router.get("/showreviews/:userid",showreviews) //done
+ router.get("/showalredyratedornot/:rateduserid",showalredyratedornot)  //done
+ router.get("/showrequest",showrequest) //done
+ router.get("/showapplicants/:requestid",showapplicants) // done 
+ router.get("/showrequeststatus/:requestid",showrequeststatus) //done
  router.get("/showreports",showreports)
  router.get("/showbugs",showbugs)
- router.get("/myapply",myapply)
- router.get("/showallgroup",showallgroup)
+ router.get("/myapply",myapply) //done
+ router.get("/showallgroup",showallgroup) //done
  router.post("/sendpaymentproof",postUpload.single("proofimage"), sendpaymentproof)
  router.post("/aproveusers", aproveusers)
  router.post("/rejectusers", rejectusers)
  router.get("/showallproofimage/:requestid", showallproofimage)
  
- router.get("/myrequest",myrequest)
- router.post("/acceptapplicant",acceptapplicant)
- router.post("/removeapplicant",removeapplicant)
+ router.get("/myrequest",myrequest) //done
+ router.post("/acceptapplicant",acceptapplicant) //done
+ router.post("/removeapplicant",removeapplicant) //done
  router.post("/reportuser",reportuser)
  router.post("/reportabug",reportabug)
  router.post("/validatereport",validatereport)
@@ -57,7 +57,7 @@ router.get("/getuseravatar",getuseravatar)
  router.post("/deleterequest",deleterequest)
 
 
- router.get("/showalladmingroups",showalladmingroups)
+ router.get("/showalladmingroups",showalladmingroups) //done
 router.post("/addnewgroup",addnewgroup)
 router.post("/addmembers",addmembers)
 
@@ -71,12 +71,12 @@ router.post("/rejectdeleterequest",rejectdeleterequest)
 router.get("/showdeleterequest/:groupid",showdeleterequest)
 router.get("/showlogindetails/:planid",showlogindetails)
 //done 
-router.get("/getnotification",getnotification)
-router.get("/getnotificationcount",getnotificationcount)
-router.get("/getunsceenfinalgroupmessaeg/:groupid",getunsceenfinalgroupmessaeg)
-router.get("/numberofunsceenmsginfinalgroup/:groupid",numberofunsceenmsginfinalgroup)
-router.get("/showoldmessage/:groupid",showoldmessage)
-router.get("/getunsceentempgroupmessaeg/:groupid",getunsceentempgroupmessaeg)
-router.get("/numberofunsceenmsgintempgroup/:groupid",numberofunsceenmsgintempgroup)
-router.get("/showoldmessageoftempgroup/:groupid",showoldmessageoftempgroup)
+router.get("/getnotification",getnotification)  //done
+router.get("/getnotificationcount",getnotificationcount) //done
+router.get("/getunsceenfinalgroupmessaeg/:groupid",getunsceenfinalgroupmessaeg) //done
+router.get("/numberofunsceenmsginfinalgroup/:groupid",numberofunsceenmsginfinalgroup)  //done
+router.get("/showoldmessage/:groupid",showoldmessage)  //done
+router.get("/getunsceentempgroupmessaeg/:groupid",getunsceentempgroupmessaeg) //done
+router.get("/numberofunsceenmsgintempgroup/:groupid",numberofunsceenmsgintempgroup)  //done
+router.get("/showoldmessageoftempgroup/:groupid",showoldmessageoftempgroup) //done
 export default router

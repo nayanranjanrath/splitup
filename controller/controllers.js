@@ -1153,7 +1153,13 @@ export const showapplicants = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = 10;
         const skip = (page - 1) * limit;
-
+          const request = await platformsharerequestmodel.findById(requestid);
+        if (!request) {
+            return res.status(404).json({ success: false, message: "Request not found" });
+        }
+        if (request.requister.toString() !== userid._id.toString()) {
+            return res.status(402).json({ success: false, message: "Unauthorized only requester can accept applicant" });
+        }
         const applicant = await aplicantmodel
             .findOne({ request: requestid })
             .populate("applicant", "profilename avatar reting")
