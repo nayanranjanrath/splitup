@@ -1385,3 +1385,39 @@ export const myapply = async (req, res) => {
         return res.status(500).json({ success: false, message: "Internal server error" });
     }
 }
+
+export const showplatformimage = async (req, res) => {
+    try {
+        const { platformid } = req.params;
+        const platform = await platformmodel.findById(platformid).select("platformimage");
+        if (!platform) {
+            return res.status(404).json({ success: false, message: "Platform not found" });
+        }
+        res.set("Cache-Control", "public, max-age=300");
+        return res.status(200).json({ success: true, message: "Platform image", platform });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export const addplatformimage = async (req, res) => {
+try {
+    const { platformid } = req.body;
+    const platform = await platformmodel.findById(platformid);
+    if (!platform) {
+        return res.status(404).json({ success: false, message: "Platform not found" });
+    }
+   
+    const cloudinaryurl= await uploadtocloudinar(req.file.path);   
+    if (!cloudinaryurl) {
+        return res.status(500).json({ success: false, message: "Failed to upload image to Cloudinary" });
+    }
+    platform.platformimage = cloudinaryurl;
+    await platform.save();
+    return res.status(200).json({ success: true, message: "Platform image added successfully", platform });
+} catch (error) {
+     console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+}
+}

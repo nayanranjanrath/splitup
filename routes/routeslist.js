@@ -2,7 +2,7 @@ import express from "express"
 import { ratelimiter } from "../middlewares/redisratelimiter.js";
 const router = express.Router();
 
-import { registeruser,getuseravatar,verifyuser,loginuser,revalidateuser,logoutuser,platformsplitrequest,selectplatform,createplatform ,selectcategory,createcategory,showallplatform,showallcategory,detailsofplatform,showprofile,rateuser,showreviews,editrating,showrequest,applyforrequest,showapplicants,acceptapplicant,showrequeststatus,removeapplicant,deleterequest,myrequest,myapply,showalredyratedornot}  from "../controller/controllers.js";
+import { registeruser,getuseravatar,verifyuser,loginuser,revalidateuser,logoutuser,platformsplitrequest,selectplatform,createplatform ,selectcategory,createcategory,showallplatform,showallcategory,detailsofplatform,showprofile,rateuser,showreviews,editrating,showrequest,applyforrequest,showapplicants,acceptapplicant,showrequeststatus,removeapplicant,deleterequest,myrequest,myapply,showalredyratedornot,showplatformimage,addplatformimage}  from "../controller/controllers.js";
 import {reportuser,reportabug,showreports,showbugs,validatereport,validatebugs}from "../controller/report.controller.js"
 import {avatarUpload,postUpload} from "../middlewares/multer.js"
 import{getunsceenfinalgroupmessaeg,numberofunsceenmsginfinalgroup,showoldmessage,getunsceentempgroupmessaeg,numberofunsceenmsgintempgroup,showoldmessageoftempgroup }from "../controller/chat.controller.js"
@@ -28,10 +28,10 @@ router.get("/getuseravatar",getuseravatar)   //done
  router.post("/createcategory",createcategory) //done
  router.post("/rateuser",rateuser) //done
  router.post("/editrating",editrating)  //done
- router.post("/applyforrequest",applyforrequest)
+ router.post("/applyforrequest",applyforrequest) //done
  router.get("/showallcategory",showallcategory) //done
  router.get("/showallplatform",showallplatform) //done
- router.get("/detailsofplatform/:platformid",detailsofplatform)
+ router.get("/detailsofplatform/:platformid",detailsofplatform) //done
  router.get("/showprofile/:userid",showprofile) //done
  router.get("/showreviews/:userid",showreviews) //done
  router.get("/showalredyratedornot/:rateduserid",showalredyratedornot)  //done
@@ -42,24 +42,24 @@ router.get("/getuseravatar",getuseravatar)   //done
  router.get("/showbugs",showbugs)
  router.get("/myapply",myapply) //done
  router.get("/showallgroup",showallgroup) //done
- router.post("/sendpaymentproof",postUpload.single("proofimage"), sendpaymentproof)
- router.post("/aproveusers", aproveusers)
- router.post("/rejectusers", rejectusers)
- router.get("/showallproofimage/:requestid", showallproofimage)
- 
+ router.post("/sendpaymentproof",postUpload.single("proofimage"), sendpaymentproof) //done
+ router.post("/aproveusers", aproveusers)//done
+ router.post("/rejectusers", rejectusers) //done 
+ router.get("/showallproofimage/:requestid", showallproofimage) //done 
+ router.get("/showplatformimage/:platformid", showplatformimage) //done
  router.get("/myrequest",myrequest) //done
  router.post("/acceptapplicant",acceptapplicant) //done
  router.post("/removeapplicant",removeapplicant) //done
- router.post("/reportuser",reportuser)
- router.post("/reportabug",reportabug)
+ router.post("/reportuser",reportuser) //done 
+ router.post("/reportabug",reportabug) //done
  router.post("/validatereport",validatereport)
  router.post("/validatebugs",validatebugs)
- router.post("/deleterequest",deleterequest)
+ router.post("/deleterequest",deleterequest) //done
 
-
+router.post("/addplatformimage",avatarUpload.single("platformimage"),addplatformimage) //done
  router.get("/showalladmingroups",showalladmingroups) //done
-router.post("/addnewgroup",addnewgroup)
-router.post("/addmembers",addmembers)
+router.post("/addnewgroup",addnewgroup) //done
+router.post("/addmembers",addmembers) //done
 
 router.post("/selectplatformtofinalgroup",selectplatformtofinalgroup)
 router.post("/addplan",addplan)

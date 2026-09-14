@@ -15,7 +15,10 @@ const platformschema = new Schema({
         
                 
     },    
-   
+   platformimage: {
+        type: String,
+       
+    },
 
  createdAt:{
         type:Date,
