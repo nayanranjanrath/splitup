@@ -40,7 +40,7 @@ export const generateaccessandrefreshtoken = async (user_id) => {
 export const extractuserid = (incomingaccessToken) => {
 
     if (!incomingaccessToken) {
-        throw new Error("Unauthorized");
+          return null;
     }
     const decodeddata = jwt.verify(
         incomingaccessToken,
@@ -171,7 +171,10 @@ export const verifyuser = async (req, res) => {
 }
 
 export const loginuser = async (req, res) => {
-
+    console.log("loginuser called")
+try {
+    
+ 
     const { email, password } = req.body
     if (!email || !password) {
         return res.status(400).json({ success: false, message: "All fields are required" })
@@ -182,6 +185,7 @@ export const loginuser = async (req, res) => {
     }
     const ispasswordcorrect = await user.ispasswordcorrect(password)
     if (!ispasswordcorrect) {
+        console.log("invalid password")
         return res.status(400).json({ success: false, message: "Invalid password" })
     }
 
@@ -189,12 +193,15 @@ export const loginuser = async (req, res) => {
     const options = {
         httpOnly: true,
         secure: false,
-        sameSite: "none",
+        sameSite: "lax",
         maxAge: 10 * 24 * 60 * 60 * 1000,
     }
     const notification = await notificationmodel.create({ user: user._id, message: "wellcome to splitup" })
-    return res.status(200).cookie("accesstoken", accesstoken, options).cookie("refreshtoken", refreshtoken, options).json({ success: true, message: "User logged in successfully", user })
-
+  return res.status(200).cookie("accesstoken", accesstoken, options).cookie("refreshtoken", refreshtoken, options).json({ success: true, message: "User logged in successfully", user })
+}catch (error) {
+     console.log(error)
+        return res.status(500).json({ success: false, message: "Internal server error" })
+}
 
 }
 
@@ -237,7 +244,8 @@ export const revalidateuser = async (req, res) => {
     }
 }
 export const getuseravatar = async (req, res) => {
-      const token = req.cookies.accesstoken;
+     try {
+         const token = req.cookies.accesstoken;
         const userid = extractuserid(token)
         if (!userid) {
             return res.status(403).json({ success: false, message: "Unauthorized" });
@@ -247,6 +255,10 @@ export const getuseravatar = async (req, res) => {
             return res.status(404).json({ success: false, message: "User not found" });
         }
         return res.status(200).json({ success: true, message: "User avatar found", user })
+     } catch (error) {
+        console.log(error)
+        return res.status(500).json({ success: false, message: "Internal server error" })
+     }
 }
 
 export const logoutuser = async (req, res) => {
@@ -283,22 +295,49 @@ export const logoutuser = async (req, res) => {
 }
 export const platformsplitrequest = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token)
 
-        const requestid = req.body.requestid
-        const request = await platformsharerequestmodel.findById(requestid)
-        if (!request) {
-            return res.status(400).json({ success: false, message: "Request not found" })
+        const token = req.cookies.accesstoken;
+        const userid = extractuserid(token);
+
+        if (!userid) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
-        const platform = request.platformname
-        const { planname, planprice, planvalidityday, totalslots } = req.body
+
+        const requestid = req.body.requestid;
+
+        const request = await platformsharerequestmodel.findById(requestid);
+
+        if (!request) {
+            return res.status(400).json({
+                success: false,
+                message: "Request not found"
+            });
+        }
+
+        const platform = request.platformname;
+
+        const {
+            planname,
+            planprice,
+            planvalidityday,
+            totalslots
+        } = req.body;
 
         if (!planprice || !planvalidityday || !totalslots) {
-            return res.status(400).json({ success: false, message: "All fields are required" })
+            return res.status(400).json({
+                success: false,
+                message: "All fields are required"
+            });
         }
-        const localImagePaths = req.files?.map(file => file.path) || [];
 
+        // --------------------------------------------------
+        // GET UPLOADED IMAGES
+        // --------------------------------------------------
+
+        const localImagePaths = req.files?.map(file => file.path) || [];
 
         if (localImagePaths.length === 0) {
             return res.status(400).json({
@@ -307,142 +346,367 @@ export const platformsplitrequest = async (req, res) => {
             });
         }
 
-        const imageToVerify = localImagePaths[0];
-        const imageBuffer = fs.readFileSync(imageToVerify);
+        // --------------------------------------------------
+        // AI VERIFICATION
+        // --------------------------------------------------
 
+        let aiVerified = false;
+        let aiVerificationSkipped = false;
+        let verificationData = null;
 
-        const extension = path.extname(imageToVerify).toLowerCase();
-        const mimeType = extension === '.png' ? 'image/png' :
-            (extension === '.webp' ? 'image/webp' : 'image/jpeg');
+        try {
 
-        const imagePart = {
-            inlineData: {
-                data: imageBuffer.toString("base64"),
-                mimeType: mimeType
-            }
-        };
+            const imageToVerify = localImagePaths[0];
 
-        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
-        const verificationSchema = {
-            type: SchemaType.OBJECT,
-            properties: {
-                is_platform: {
-                    type: SchemaType.BOOLEAN,
-                    description: `Does this image clearly show authentic UI for ${platform}?`
-                },
-                is_ai_generated: {
-                    type: SchemaType.BOOLEAN,
-                    description: "Are there obvious AI artifacts, warped text, or fake elements?"
-                },
-                has_premium_proof: {
-                    type: SchemaType.BOOLEAN,
-                    description: "Does the image contain visual proof of a paid account, premium subscription, paid game library, or a transaction history? (e.g., a 'Premium' badge, games that cost money, or an active subscription page)."
-                },
-                premium_evidence: {
-                    type: SchemaType.STRING,
-                    description: "List the specific text or UI elements in the image that prove this is a paid/premium account (e.g., 'Elden Ring in library', 'Next billing date: Aug 12', or 'Steam Level 15'). If none, say 'None'."
-                },
-                reasoning: {
-                    type: SchemaType.STRING,
-                    description: "Briefly explain the final decision to pass or fail this image."
+            const imageBuffer = fs.readFileSync(imageToVerify);
+
+            const extension = path.extname(imageToVerify).toLowerCase();
+
+            const mimeType =
+                extension === ".png"
+                    ? "image/png"
+                    : extension === ".webp"
+                        ? "image/webp"
+                        : "image/jpeg";
+
+            const imagePart = {
+                inlineData: {
+                    data: imageBuffer.toString("base64"),
+                    mimeType: mimeType
                 }
-            },
-            required: ["is_platform", "is_ai_generated", "has_premium_proof", "premium_evidence", "reasoning"],
-        };
-        const prompt = `You are a strict fraud-prevention moderator verifying account screenshots for a platform-sharing service. 
-    The user claims this screenshot proves they have an active, paid account for the platform: "${platform}".
+            };
 
-    Analyze the image and determine if it meets our security criteria:
-    1. It must be a genuine screenshot of ${platform}.
-    2. It must show proof of the HIGHEST or STANDARD premium tier. Free, budget, or "Lite" accounts are instantly rejected.
-    
-    CRITICAL TIER RULES:
-    - Many platforms offer budget tiers that do not include full shareable benefits. These MUST BE REJECTED.
-    - For Software (ChatGPT/OpenAI): Reject "Go". Accept "Plus" or "Pro".
-    - For Xbox Game Pass: Reject "Essential" or "Core". Accept "Premium" or "Ultimate".
-    - For YouTube: Reject "Premium Lite". Accept standard "Premium".
-    - Catch-All Rule: For ANY other platform, if the screenshot displays keywords like "Lite", "Basic", "Essential", "Starter", or "Go", you must reject it.
-    
-    Examples of valid proof:
-    - An account details page clearly stating the full premium subscription name.
-    - For gaming: Paid games in the library or a high account level.
-    
-    Look closely at the text, UI layout, and badges. Do not assume it is a paid, full-tier account unless you see direct evidence.`;
-
-        // Force Gemini to return clean JSON so it never breaks your code
-        const aiResult = await model.generateContent({
-            contents: [{ role: "user", parts: [{ text: prompt }, imagePart] }],
-            generationConfig: {
-                responseMimeType: "application/json",
-                responseSchema: verificationSchema // <-- THIS IS THE MISSING LINE!
-            }
-        });
-        // 1. Get the raw text from the response
-        // ... inside your try block, after generating content ...
-        const rawText = aiResult.response.text();
-        const verificationData = JSON.parse(rawText);
-
-        console.log("Moderation Result:", verificationData);
-
-        // Block if it's the wrong platform, AI generated, OR lacks premium proof
-        if (!verificationData.is_platform || verificationData.is_ai_generated || !verificationData.has_premium_proof) {
-            for (const file of localImagePaths) {
-                if (fs.existsSync(file)) {
-                    fs.unlinkSync(file);
-                }
-            }
-            // You can use the AI's reasoning to give the user a helpful error message!
-
-            const notification = await notificationmodel.create({ user: userid._id, message: "Your proof image  was rejected due to the following reason: " + verificationData.reasoning })
-            return res.status(400).json({
-                success: false,
-                message: `Verification failed: ${verificationData.reasoning} Please ensure your screenshot clearly shows your active subscription, paid library, or premium badges.`
+            const model = genAI.getGenerativeModel({
+                model: "gemini-3.5-flash"
             });
+
+            const verificationSchema = {
+                type: SchemaType.OBJECT,
+
+                properties: {
+
+                    is_platform: {
+                        type: SchemaType.BOOLEAN,
+                        description:
+                            `Does this image clearly show authentic UI for ${platform}?`
+                    },
+
+                    is_ai_generated: {
+                        type: SchemaType.BOOLEAN,
+                        description:
+                            "Are there obvious AI artifacts, warped text, or fake elements?"
+                    },
+
+                    has_premium_proof: {
+                        type: SchemaType.BOOLEAN,
+                        description:
+                            "Does the image contain visual proof of a paid account, premium subscription, paid game library, or a transaction history? (e.g., a 'Premium' badge, games that cost money, or an active subscription page)."
+                    },
+
+                    premium_evidence: {
+                        type: SchemaType.STRING,
+                        description:
+                            "List the specific text or UI elements in the image that prove this is a paid/premium account. If none, say 'None'."
+                    },
+
+                    reasoning: {
+                        type: SchemaType.STRING,
+                        description:
+                            "Briefly explain the final decision to pass or fail this image."
+                    }
+
+                },
+
+                required: [
+                    "is_platform",
+                    "is_ai_generated",
+                    "has_premium_proof",
+                    "premium_evidence",
+                    "reasoning"
+                ]
+            };
+
+            const prompt = `
+You are a strict fraud-prevention moderator verifying account screenshots for a platform-sharing service.
+
+The user claims this screenshot proves they have an active, paid account for the platform: "${platform}".
+
+Analyze the image and determine if it meets our security criteria:
+
+1. It must be a genuine screenshot of ${platform}.
+
+2. It must show proof of the HIGHEST or STANDARD premium tier.
+Free, budget, or "Lite" accounts are instantly rejected.
+
+CRITICAL TIER RULES:
+
+- Many platforms offer budget tiers that do not include full shareable benefits. These MUST BE REJECTED.
+
+- For Software (ChatGPT/OpenAI):
+  Reject "Go".
+  Accept "Plus" or "Pro".
+
+- For Xbox Game Pass:
+  Reject "Essential" or "Core".
+  Accept "Premium" or "Ultimate".
+
+- For YouTube:
+  Reject "Premium Lite".
+  Accept standard "Premium".
+
+- Catch-All Rule:
+  For ANY other platform, if the screenshot displays keywords like "Lite", "Basic", "Essential", "Starter", or "Go", you must reject it.
+
+Examples of valid proof:
+
+- An account details page clearly stating the full premium subscription name.
+- For gaming: Paid games in the library or a high account level.
+
+Look closely at the text, UI layout, and badges.
+Do not assume it is a paid, full-tier account unless you see direct evidence.
+`;
+
+            const aiResult = await model.generateContent({
+
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            {
+                                text: prompt
+                            },
+                            imagePart
+                        ]
+                    }
+                ],
+
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: verificationSchema
+                }
+
+            });
+
+            const rawText = aiResult.response.text();
+
+            verificationData = JSON.parse(rawText);
+
+            console.log(
+                "Moderation Result:",
+                verificationData
+            );
+
+            // --------------------------------------------------
+            // AI VERIFICATION FAILED
+            // --------------------------------------------------
+
+            if (
+                !verificationData.is_platform ||
+                verificationData.is_ai_generated ||
+                !verificationData.has_premium_proof
+            ) {
+
+                // Delete uploaded files because verification failed
+
+                for (const file of localImagePaths) {
+
+                    if (fs.existsSync(file)) {
+                        fs.unlinkSync(file);
+                    }
+
+                }
+
+                await notificationmodel.create({
+                    user: userid._id,
+                    message:
+                        "Your proof image was rejected due to the following reason: " +
+                        verificationData.reasoning
+                });
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        `Verification failed: ${verificationData.reasoning} Please ensure your screenshot clearly shows your active subscription, paid library, or premium badges.`
+                });
+            }
+
+            // --------------------------------------------------
+            // AI VERIFICATION SUCCESS
+            // --------------------------------------------------
+
+            aiVerified = true;
+
+            console.log("AI verification successful.");
+
+        } catch (aiError) {
+
+            console.error(
+                "Gemini verification error:",
+                aiError
+            );
+
+            // --------------------------------------------------
+            // GEMINI 503 FALLBACK
+            // --------------------------------------------------
+
+            if (aiError?.status === 503) {
+
+                console.log(
+                    "Gemini is temporarily unavailable (503)."
+                );
+
+                console.log(
+                    "Skipping AI verification and saving request."
+                );
+
+                aiVerified = false;
+                aiVerificationSkipped = true;
+
+            } else {
+
+                // Any error other than 503
+                // should NOT bypass verification.
+
+                for (const file of localImagePaths) {
+
+                    if (fs.existsSync(file)) {
+                        fs.unlinkSync(file);
+                    }
+
+                }
+
+                return res.status(500).json({
+
+                    success: false,
+
+                    message:
+                        "AI verification service is currently unavailable. Please try again later."
+                });
+            }
         }
 
-        // -----------image check with ai ends  here --------
+        // --------------------------------------------------
+        // UPLOAD IMAGES TO CLOUDINARY
+        // --------------------------------------------------
 
         const imageUrls = await Promise.all(
-            localImagePaths.map(async (imagePath) => {
-                const { outputPath } = await convertToJpg(imagePath);
 
-                const result = await uploadtocloudinar(outputPath);
+            localImagePaths.map(async (imagePath) => {
+
+                const { outputPath } =
+                    await convertToJpg(imagePath);
+
+                const result =
+                    await uploadtocloudinar(outputPath);
 
                 return {
+
                     url: result.secure_url,
+
                     publicId: result.public_id
+
                 };
+
             })
+
         );
 
+        // --------------------------------------------------
+        // UPDATE REQUEST
+        // --------------------------------------------------
 
+        request.planname = planname;
 
+        request.planprice = planprice;
 
+        request.planvalidityday = planvalidityday;
 
-        request.planname = planname,
-            request.planprice = planprice,
-            request.planvalidityday = planvalidityday,
-            request.requister = userid._id,
-            request.proofimage = imageUrls,
-            request.totalslots = totalslots
+        request.requister = userid._id;
 
+        request.proofimage = imageUrls;
 
+        request.totalslots = totalslots;
+
+        // --------------------------------------------------
+        // OPTIONAL AI STATUS
+        // --------------------------------------------------
+
+        // Only use these two fields if you add them
+        // to your platformsharerequest schema.
+
+        request.aiVerified = aiVerified;
+
+        request.aiVerificationSkipped =
+            aiVerificationSkipped;
+
+        // --------------------------------------------------
+        // SAVE REQUEST
+        // --------------------------------------------------
 
         const savedrequest = await request.save();
 
-        const successnotification = await notificationmodel.create({ user: userid._id, message: "you have successfully created a new request" })
-        return res.status(200).json({ success: true, message: "Request submitted successfully", savedrequest });
+        // --------------------------------------------------
+        // SUCCESS NOTIFICATION
+        // --------------------------------------------------
 
+        let notificationMessage =
+            "You have successfully created a new request";
 
+        if (aiVerificationSkipped) {
+
+            notificationMessage =
+                "Your request was created successfully. AI verification was temporarily unavailable, so your proof was saved without AI verification.";
+
+        }
+
+        await notificationmodel.create({
+
+            user: userid._id,
+
+            message: notificationMessage
+
+        });
+
+        // --------------------------------------------------
+        // RESPONSE
+        // --------------------------------------------------
+
+        return res.status(200).json({
+
+            success: true,
+
+            message: aiVerificationSkipped
+                ? "Request submitted successfully. AI verification was temporarily unavailable."
+                : "Request submitted successfully",
+
+            aiVerified: aiVerified,
+
+            aiVerificationSkipped:
+                aiVerificationSkipped,
+
+            savedrequest
+
+        });
 
     } catch (error) {
-        console.log(error);
 
+        console.error(
+            "platformsplitrequest error:",
+            error
+        );
 
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        return res.status(500).json({
+
+            success: false,
+
+            message: "Internal server error"
+
+        });
+
     }
-}
-
+};
 export const selectplatform = async (req, res) => {
     try {
         // const requestid = req.body.requestid
@@ -1345,6 +1609,7 @@ export const myrequest = async (req, res) => {
 }
 
 export const myapply = async (req, res) => {
+    console.log("myapply called");
     try {
         const token = req.cookies.accesstoken;
         const userid = extractuserid(token);
@@ -1374,8 +1639,8 @@ export const myapply = async (req, res) => {
                 ]
             })
             .select("-__v -createdAt");
-        if (!requests) {
-            return res.status(404).json({ success: false, message: "No requests found" });
+        if (requests.length===0) {
+            return res.status(204).json({ success: false, message: "No requests found" });
         }
         res.set("Cache-Control", "public, max-age=300");
         return res.status(200).json({ success: true, message: "Requests found", requests });
@@ -1420,4 +1685,149 @@ try {
      console.log(error);
         return res.status(500).json({ success: false, message: "Internal server error" });
 }
+}
+
+
+export const alredyappliedornot = async (req, res) => {
+    try {
+
+        const token = req.cookies.accesstoken;
+
+        // No access token
+        if (!token) {
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized"
+            });
+        }
+
+        // Extract user ID
+        const userid = extractuserid(token);
+
+        if (!userid) {
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized"
+            });
+        }
+
+        const requestid = req.params.requestid;
+
+        // Find request
+        const request = await platformsharerequestmodel.findById(requestid);
+
+        if (!request) {
+            return res.status(404).json({
+                success: false,
+                message: "Request not found"
+            });
+        }
+
+        // Check whether user is already a member
+        const alreadyAccepted = (request.members || []).some(
+            (member) => member.equals(userid)
+        );
+
+        if (alreadyAccepted) {
+            return res.status(400).json({
+                success: false,
+                message: "You have already accepted for this request"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "You can apply for this request"
+        });
+
+    } catch (error) {
+
+        console.error("alredyappliedornot error:", error);
+
+        // Handle expired JWT specifically
+        if (error.name === "TokenExpiredError") {
+            return res.status(401).json({
+                success: false,
+                message: "Access token expired"
+            });
+        }
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+};
+export const addupiid = async(req,res)=>{
+    try {
+          const token = req.cookies.accesstoken;
+          const { upiid } = req.body;
+          if (!upiid) {
+            return res.status(400).json({ success: false, message: "UPI ID is required" });
+        }
+        if (!token) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+        const userid = extractuserid(token);
+        if (!userid) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+        const user = await usermodel.findById(userid._id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        user.upiid = upiid;
+        await user.save();
+        return res.status(200).json({ success: true, message: "UPI ID added successfully", user });
+    } catch (error) {
+            
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export const updateupiid = async(req,res)=>{
+    try {
+        const token = req.cookies.accesstoken;
+        const { upiid } = req.body;
+        if (!upiid) {
+            return res.status(400).json({ success: false, message: "UPI ID is required" });
+        }
+        if (!token) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+        const userid = extractuserid(token);
+        if (!userid) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+        const user = await usermodel.findByIdandUpdate(userid._id, { upiid: upiid }, { new: true });
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        return res.status(200).json({ success: true, message: "UPI ID updated successfully", user });
+     
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export const showupiid = async(req,res)=>{
+    try {
+        const token = req.cookies.accesstoken;
+        if (!token) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+        const sellerid =req.params.userid;
+        if (!sellerid) {
+            return res.status(400).json({ success: false, message: "User ID is required" });
+        }
+        const seller = await usermodel.findById(sellerid).select("upiid");
+        if (!seller) {
+            return res.status(404).json({ success: false, message: "Seller not found" });
+        }
+        return res.status(200).json({ success: true, message: "UPI ID found", seller });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" }); 
+    }
 }

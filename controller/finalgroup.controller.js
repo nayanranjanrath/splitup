@@ -609,3 +609,21 @@ export const showlogindetails = async (req, res) => {
         return res.status(500).json({ success: false, message: "internalserver error" })
     }
 }
+
+export const showplansofafinalgroup = async (req, res) => {
+    try {
+        const groupid = req.params.groupid
+        if (!groupid) {
+            return res.status(404).json({ success: false, message: "all the fields are required" })
+        }
+        const plans = await planmodel.find({ finalchatid: groupid }).populate('platform', 'platformname')
+        if (!plans || plans.length === 0) {
+            return res.status(404).json({ success: false, message: "no plans found for this group" })
+        }
+        return res.status(200).json({ success: true, plans })
+    } catch (error) {
+        console.log(error)
+        return res.status(500).json({ success: false, message: "internalserver error" })
+    }
+}
+

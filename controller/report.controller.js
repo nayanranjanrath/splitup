@@ -58,6 +58,12 @@ export const reportabug = async (req, res) => {
             report: description
         });
         await report.save();
+         const notification = new notificationmodel({
+            user:userid._id,
+            message: "Thanks for helping us improve SplitUp! Your bug report has been submitted successfully. We'll look into it as soon as possible.",
+            
+        })
+        await notification.save();
         return res.status(200).json({ success: true, message: "Bug reported successfully" });
     } catch (error) {
         console.log(error);

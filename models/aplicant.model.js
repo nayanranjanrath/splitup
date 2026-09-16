@@ -4,7 +4,7 @@ import { Schema, model } from "mongoose"
 const aplicantSchema = new Schema({
     request: {
         type: Schema.Types.ObjectId,
-        ref: "platformsharerequestmodel"
+        ref: "platformsharerequest"
 
     },
     applicant:[ {
@@ -14,7 +14,7 @@ const aplicantSchema = new Schema({
     }],
     platformname: {
         type: Schema.Types.ObjectId,
-        ref: "platformmodel"
+        ref: "platform"
     },
    
      createdAt:{
@@ -24,6 +24,6 @@ const aplicantSchema = new Schema({
 })
 
 
-const aplicantmodel= new model("aplicantmodel",aplicantSchema)
+const aplicantmodel=  model("aplicantmodel",aplicantSchema)
 
 export default aplicantmodel                    
