@@ -1,5 +1,4 @@
 import finalChatModel from "../models/finalchat.model";
-import { extractuserid } from "./controllers.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import planmodel from "../models/plan.model.js";
 import platformmodel from "../models/platform.model.js";
@@ -10,30 +9,16 @@ import { encryptMessage, decryptMessage } from "../utility/messageencryption.js"
 import notificationmodel from "../models/notification.model.js"
 import mongoose from "mongoose";
 import tempChatModel from "../models/tempchat.model.js";
+import { uploadtocloudinar } from "../utility/cloudinary.js"
 export const showalladmingroups = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
 
-        if (!token) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
-
-        const userid = extractuserid(token);
-
-        if (!userid) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
+        const userid = req.userId;
 
         const cursor = req.query.cursor;
 
         const query = {
-            admin: userid._id
+            admin: userid
         };
 
         // Get groups after the cursor
@@ -69,66 +54,111 @@ export const showalladmingroups = async (req, res) => {
         });
     }
 };
+
+
 export const addnewgroup = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken
+
         const groupname = req.body.groupname;
+
         if (!groupname) {
-            return res.status(404).json({ success: false, message: "groupname is required " });
+            return res.status(404).json({
+                success: false,
+                message: "groupname is required "
+            });
         }
-        const userid = extractuserid(token)
-        if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        const newgroup = new finalChatModel({ admin: userid._id, groupname: groupname });
-        newgroup.members.push(userid._id)
-        await newgroup.save()
-        return res.status(200).json({ success: true, message: "group created successfully" })
+
+        const userid = req.userId;
+
+        const newgroup = new finalChatModel({
+            admin: userid,
+            groupname: groupname
+        });
+
+        newgroup.members.push(userid);
+
+        await newgroup.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "group created successfully",
+            group: newgroup
+        });
+
     } catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        });
     }
 }
 
+
 export const addmembers = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken
+
         const { groupid, candidate, requestid } = req.body;
 
         if (!groupid || !candidate || !requestid) {
-            return res.status(404).json({ success: false, message: " all the fiedls are  required " });
+            return res.status(404).json({
+                success: false,
+                message: " all the fiedls are  required "
+            });
         }
-        const userid = extractuserid(token)
-        if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        const group = await finalChatModel.findById(groupid)
+
+        const userid = req.userId;
+
+        const group = await finalChatModel.findById(groupid);
+
         if (!group) {
-            return res.status(404).json({ success: false, message: "no such group find " });
+            return res.status(404).json({
+                success: false,
+                message: "no such group find "
+            });
         }
-        if (group.admin.toString() !== userid._id.toString()) {
-            return res.status(403).json({ success: false, message: "Unauthorized only admin can add members" });
+
+        if (group.admin.toString() !== userid.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized only admin can add members"
+            });
         }
-        const request = await platformsharerequestmodel.findById(requestid)
+
+        const request = await platformsharerequestmodel.findById(requestid);
+
         if (!request) {
-            return res.status(404).json({ success: false, message: "no such request find " });
+            return res.status(404).json({
+                success: false,
+                message: "no such request find "
+            });
         }
+
         const isMember = request.members.some(member =>
             member.equals(candidate)
         );
+
         if (!isMember) {
-            return res.status(404).json({ success: false, message: "Unauthorized only member can add members" });
+            return res.status(404).json({
+                success: false,
+                message: "Unauthorized only member can add members"
+            });
         }
-        const tempgroup = await tempChatModel.findone({request:request.tempchatid})
+
+        const tempgroup = await tempChatModel.findOne({
+            request: request.tempchatid
+        });
+
         if (!tempgroup) {
-            return res.status(404).json({ success: false, message: "no such group find " });
+            return res.status(404).json({
+                success: false,
+                message: "no such group find "
+            });
         }
-        const paiduser = tempgroup.paidusers.some(user =>
-            user.equals(candidate)
-        );
-        if (!paiduser) {
-            return res.status(404).json({ success: false, message: "Unauthorized only paid user can added to  members so first aprove the users proof imaege" });
-        }
+
+        
+
         const alreadyMember = group.members.some(member =>
             member.equals(candidate)
         );
@@ -139,12 +169,18 @@ export const addmembers = async (req, res) => {
                 message: "User is already a member of this group"
             });
         }
-        const existingplan = await planmodel.findOne({ finalchatid: groupid, platform: request.platformname })
+
+        const existingplan = await planmodel.findOne({
+            finalchatid: groupid,
+            platform: request.platformname
+        });
+
         if (!existingplan) {
             const planexpaire = new Date(
                 request.createdAt.getTime() +
                 request.planvalidityday * 24 * 60 * 60 * 1000
             );
+
             const plan = new planmodel({
                 finalchatid: groupid,
                 platform: request.platformname,
@@ -152,86 +188,130 @@ export const addmembers = async (req, res) => {
                 planvalidity: request.planvalidityday,
                 expiresAt: planexpaire
             });
+
             await plan.save()
         }
 
-        group.members.push(candidate)
-        await group.save()
+        group.members.push(candidate);
 
-        const notifcation = await notificationmodel.create(
-            {
-                user: candidate,
+       const success = await group.save();
 
-                message: `You have been successfully added to a new group: ${group.groupname}`,
-            }
-        )
-        notifcation.save()
-        return res.status(200).json({ success: true, message: "group members added successfully" })
+        const notifcation = await notificationmodel.create({
+            user: candidate,
+            message: `You have been successfully added to a new group: ${group.groupname}`,
+        });
+
+        await notifcation.save();
+        if (success) {
+            request.members.pull(candidate);
+            await request.save();
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "group members added successfully"
+        });
+
     }
-
     catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        });
     }
 }
 
 
 export const selectplatformtofinalgroup = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken
+
         const platformid = req.body.platformid;
 
         if (!platformid) {
-            return res.status(404).json({ success: false, message: " platform id is required  " });
+            return res.status(404).json({
+                success: false,
+                message: " platform id is required  "
+            });
         }
-        const userid = extractuserid(token)
-        if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        redis.set(`platform${userid._id}`, platformid, 'EX', 300)
-        return res.status(200).json({ success: true, message: "platform added successfully" })
+
+        const userid = req.userId;
+
+        redis.set(`platform${userid}`, platformid, 'EX', 300)
+
+        return res.status(200).json({
+            success: true,
+            message: "platform added successfully"
+        });
+
     } catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        });
     }
 }
+
+
 export const addplan = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken
-
 
         const { groupid, planname, planvalidity } = req.body;
 
         if (!groupid || !planname || !planvalidity) {
-            return res.status(404).json({ success: false, message: " all the fiedls are  required try again  " });
+            return res.status(404).json({
+                success: false,
+                message: " all the fiedls are  required try again  "
+            });
         }
-        const userid = extractuserid(token)
-        if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        const group = await finalChatModel.findById(groupid)
+
+        const userid = req.userId;
+
+        const group = await finalChatModel.findById(groupid);
+
         if (!group) {
-            return res.status(404).json({ success: false, message: "no such group find " });
+            return res.status(404).json({
+                success: false,
+                message: "no such group find "
+            });
         }
-        if (group.admin.toString() !== userid._id.toString()) {
-            return res.status(403).json({ success: false, message: "Unauthorized only admin can add plan" });
+
+        if (group.admin.toString() !== userid.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized only admin can add plan"
+            });
         }
-        const platform = await redis.get(`platform${userid._id}`)
+
+        const platform = await redis.get(`platform${userid}`);
+
         if (!platform) {
-            return res.status(404).json({ success: false, message: "no platfom selected or selected platform expaired please try again  " });
+            return res.status(404).json({
+                success: false,
+                message: "no platfom selected or selected platform expaired please try again  "
+            });
         }
 
         const now = new Date();
-        const expiresAt = new Date(now.getTime() + planvalidity * 24 * 60 * 60 * 1000);
+
+        const expiresAt = new Date(
+            now.getTime() + planvalidity * 24 * 60 * 60 * 1000
+        );
+
         const plan = new planmodel({
             finalchatid: groupid,
             platform: platform,
             planname: planname,
             planvalidity: planvalidity,
             expiresAt: expiresAt
-        })
+        });
+
         await plan.save()
-           await Promise.all(
+
+        await Promise.all(
             group.members.map(member =>
                 notificationmodel.create({
                     user: member,
@@ -239,35 +319,56 @@ export const addplan = async (req, res) => {
                 })
             )
         );
-        return res.status(200).json({ success: true, message: "plan added successfully" })
+
+        return res.status(200).json({
+            success: true,
+            message: "plan added successfully"
+        });
+
     } catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        });
     }
 }
-
 export const addsignindetails = async (req, res) => {
     try {
 
-        const token = req.cookies.accesstoken
         const { planid, platformemail, platformepassword } = req.body;
 
         if (!planid || !platformemail || !platformepassword) {
-            return res.status(404).json({ success: false, message: " all the fiedls are  required " });
+            return res.status(404).json({
+                success: false,
+                message: " all the fiedls are  required "
+            });
         }
-        const userid = extractuserid(token)
-        if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        const plan = await planmodel.findById(planid).populate('finalchatid')
+
+        const userid = req.userId;
+
+        const plan = await planmodel
+            .findById(planid)
+            .populate('finalchatid');
+
         if (!plan) {
-            return res.status(404).json({ success: false, message: "no such plan find " });
+            return res.status(404).json({
+                success: false,
+                message: "no such plan find "
+            });
         }
-        const planmail = encryptMessage(platformemail.trim())
-        const planpassword = encryptMessage(platformepassword.trim())
-        if (plan.finalchatid.admin.toString() !== userid._id.toString()) {
-            return res.status(403).json({ success: false, message: "Unauthorized only admin can add signup details " });
+
+        const planmail = encryptMessage(platformemail.trim());
+        const planpassword = encryptMessage(platformepassword.trim());
+
+        if (plan.finalchatid.admin.toString() !== userid.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized only admin can add signup details "
+            });
         }
+
         const singupdetails = new platformsignindetailsmodel({
             planname: planid,
             platformemail: planmail.encryptedMessage,
@@ -276,43 +377,75 @@ export const addsignindetails = async (req, res) => {
             platformpassword: planpassword.encryptedMessage,
             passwordiv: planpassword.iv,
             passwordauth: planpassword.authTag
-        })
-        await singupdetails.save()
-        return res.status(200).json({ success: true, message: "signin details added successfully" })
+        });
+
+        await singupdetails.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "signin details added successfully"
+        });
+
     } catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        });
     }
 }
 
+
 export const deletegrouprequest = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken
+
         const { groupid } = req.body;
 
         if (!groupid) {
-            return res.status(404).json({ success: false, message: " all the fiedls are  required " });
+            return res.status(404).json({
+                success: false,
+                message: " all the fiedls are  required "
+            });
         }
-        const userid = extractuserid(token)
-        if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        const group = await finalChatModel.findById(groupid).select('admin _id members groupname')
+
+        const userid = req.userId;
+
+        const group = await finalChatModel
+            .findById(groupid)
+            .select('admin _id members groupname');
+
         if (!group) {
-            return res.status(404).json({ success: false, message: "no such group find " });
+            return res.status(404).json({
+                success: false,
+                message: "no such group find "
+            });
         }
-        if (group.admin.toString() !== userid._id.toString()) {
-            return res.status(403).json({ success: false, message: "Unauthorized only admin can delete group" });
+
+        if (group.admin.toString() !== userid.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized only admin can delete group"
+            });
         }
-        const deleterequest = await deletefinalgrouprequest.findOne({ groupid: groupid })
+
+        const deleterequest = await deletefinalgrouprequest.findOne({
+            groupid: groupid
+        });
+
         if (deleterequest) {
-            return res.status(404).json({ success: false, message: "you alredy send a request now wait for others to aprove this " });
+            return res.status(404).json({
+                success: false,
+                message: "you alredy send a request now wait for others to aprove this "
+            });
         }
+
         const newrequest = new deletefinalgrouprequest({
             groupid: groupid,
-            agreedmembers: [userid._id]
+            agreedmembers: [userid]
         });
-        await newrequest.save()
+
+        await newrequest.save();
 
         await Promise.all(
             group.members.map(member =>
@@ -323,12 +456,21 @@ export const deletegrouprequest = async (req, res) => {
             )
         );
 
-        return res.status(200).json({ success: true, message: "group deleted request sent successfully" })
+        return res.status(200).json({
+            success: true,
+            message: "group deleted request sent successfully"
+        });
+
     } catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        });
     }
 }
+
 
 export const acceptdeleterequest = async (req, res) => {
     const session = await mongoose.startSession();
@@ -337,7 +479,6 @@ export const acceptdeleterequest = async (req, res) => {
 
         await session.withTransaction(async () => {
 
-            const token = req.cookies.accesstoken;
             const { groupid } = req.body;
 
             if (!groupid) {
@@ -347,14 +488,7 @@ export const acceptdeleterequest = async (req, res) => {
                 });
             }
 
-            const userid = extractuserid(token);
-
-            if (!userid) {
-                return res.status(403).json({
-                    success: false,
-                    message: "Unauthorized"
-                });
-            }
+            const userid = req.userId;
 
             const group = await finalChatModel
                 .findById(groupid)
@@ -368,7 +502,7 @@ export const acceptdeleterequest = async (req, res) => {
                 });
             }
 
-            if (group.admin.toString() === userid._id.toString()) {
+            if (group.admin.toString() === userid.toString()) {
                 return res.status(403).json({
                     success: false,
                     message: "you created the request now wait for others to approve this"
@@ -376,7 +510,7 @@ export const acceptdeleterequest = async (req, res) => {
             }
 
             const validmember = group.members.some(member =>
-                member.equals(userid._id)
+                member.equals(userid)
             );
 
             if (!validmember) {
@@ -399,7 +533,7 @@ export const acceptdeleterequest = async (req, res) => {
 
             if (
                 deleterequest.agreedmembers.some(member =>
-                    member.equals(userid._id)
+                    member.equals(userid)
                 )
             ) {
                 return res.status(404).json({
@@ -408,7 +542,7 @@ export const acceptdeleterequest = async (req, res) => {
                 });
             }
 
-            deleterequest.agreedmembers.push(userid._id);
+            deleterequest.agreedmembers.push(userid);
 
             if (deleterequest.agreedmembers.length >= group.members.length) {
 
@@ -433,6 +567,7 @@ export const acceptdeleterequest = async (req, res) => {
                 );
 
                 await deleterequest.deleteOne({ session });
+
                 await Promise.all(
                     group.members.map(member =>
                         notificationmodel.create({
@@ -441,6 +576,7 @@ export const acceptdeleterequest = async (req, res) => {
                         })
                     )
                 );
+
                 await group.deleteOne({ session });
 
                 return res.status(200).json({
@@ -475,14 +611,17 @@ export const acceptdeleterequest = async (req, res) => {
 
 }
 
+
 export const rejectdeleterequest = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken
-        const { groupid } = req.body
 
+        const { groupid } = req.body;
 
         if (!groupid) {
-            return res.status(404).json({ success: false, message: "all the fields are required" })
+            return res.status(404).json({
+                success: false,
+                message: "all the fields are required"
+            })
         }
 
         if (!mongoose.isValidObjectId(groupid)) {
@@ -491,14 +630,12 @@ export const rejectdeleterequest = async (req, res) => {
                 message: "Invalid group ID"
             });
         }
-        const userid = extractuserid(token)
-        if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" })
-        }
+
+        const userid = req.userId;
+
         const group = await finalChatModel
             .findById(groupid)
-            .select("members admin _id groupname")
-
+            .select("members admin _id groupname");
 
         if (!group) {
             return res.status(404).json({
@@ -507,7 +644,7 @@ export const rejectdeleterequest = async (req, res) => {
             });
         }
 
-        if (group.admin.toString() === userid._id.toString()) {
+        if (group.admin.toString() === userid.toString()) {
             return res.status(403).json({
                 success: false,
                 message: "you created the request now wait for others to approve this"
@@ -515,7 +652,7 @@ export const rejectdeleterequest = async (req, res) => {
         }
 
         const validmember = group.members.some(member =>
-            member.equals(userid._id)
+            member.equals(userid)
         );
 
         if (!validmember) {
@@ -525,15 +662,31 @@ export const rejectdeleterequest = async (req, res) => {
             });
         }
 
-        const deleterequest = await deletefinalgrouprequest.findOne({ groupid: groupid })
+        const deleterequest = await deletefinalgrouprequest.findOne({
+            groupid: groupid
+        });
+
         if (!deleterequest) {
-            return res.status(404).json({ success: false, message: "no such request found" })
+            return res.status(404).json({
+                success: false,
+                message: "no such request found"
+            })
         }
-        if (deleterequest.agreedmembers.some(member => member.equals(userid._id))) {
-            return res.status(404).json({ success: false, message: "you already approved the request" })
+
+        if (
+            deleterequest.agreedmembers.some(member =>
+                member.equals(userid)
+            )
+        ) {
+            return res.status(404).json({
+                success: false,
+                message: "you already approved the request"
+            })
         }
-        await deleterequest.deleteOne()
-           await Promise.all(
+
+        await deleterequest.deleteOne();
+
+        await Promise.all(
             group.members.map(member =>
                 notificationmodel.create({
                     user: member,
@@ -541,46 +694,76 @@ export const rejectdeleterequest = async (req, res) => {
                 })
             )
         );
-        return res.status(200).json({ success: true, message: "group delete request rejected successfully" })
+
+        return res.status(200).json({
+            success: true,
+            message: "group delete request rejected successfully"
+        })
+
     } catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        })
     }
 }
 
 export const showdeleterequest = async (req, res) => {
     try {
         const { groupid } = req.params;
+
         if (!groupid) {
-            return res.status(404).json({ success: false, message: "all the fields are required" })
+            return res.status(404).json({
+                success: false,
+                message: "all the fields are required"
+            })
         }
-        const deleterequest = await deletefinalgrouprequest.findOne({ groupid: groupid })
+
+        const deleterequest = await deletefinalgrouprequest.findOne({
+            groupid: groupid
+        });
+
         if (!deleterequest) {
-            return res.status(404).json({ success: false, message: "no such request found" })
+            return res.status(404).json({
+                success: false,
+                message: "no such request found"
+            })
         }
+
         res.set("Cache-Control", "public, max-age=300");
-        return res.status(200).json({ success: true, deleterequest })
+
+        return res.status(200).json({
+            success: true,
+            deleterequest
+        })
+
     } catch (error) {
         console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        })
     }
 }
 
 
 export const showlogindetails = async (req, res) => {
     try {
-        const tokeb = req.cookies.accesstoken
-        const planid = req.params.planid
+
+        const planid = req.params.planid;
+
         if (!planid) {
-            return res.status(404).json({ success: false, message: "all the fields are required" })
+            return res.status(404).json({
+                success: false,
+                message: "all the fields are required"
+            })
         }
-        if (!tokeb) {
-            return res.status(403).json({ success: false, message: "Unauthorized" })
-        }
-        const userid = extractuserid(tokeb)
-        if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" })
-        }
+
+        const userid = req.userId;
+
         const logindetails = await platformsignindetailsmodel
             .findOne({ planname: planid })
             .populate({
@@ -591,39 +774,162 @@ export const showlogindetails = async (req, res) => {
                     select: "groupname members "
                 }
             });
+
         console.log("logindetails", logindetails)
+
         if (!logindetails) {
-            return res.status(404).json({ success: false, message: "no logindetails found" })
+            return res.status(404).json({
+                success: false,
+                message: "no logindetails found"
+            })
         }
-        if (logindetails.planname.finalchatid.members.some(member => member.equals(userid._id))) {
-            return res.status(401).json({ success: false, message: "Unauthorized only the group meembers are allow to check the login details " })
+
+        if (
+            logindetails.planname.finalchatid.members.some(
+                member => member.equals(userid)
+            )
+        ) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized only the group meembers are allow to check the login details "
+            })
         }
-        const loginid = await decryptMessage(logindetails.platformemail, logindetails.mailiv, logindetails.mailauth)
-        const loginpassword = await decryptMessage(logindetails.platformpassword, logindetails.passwordiv, logindetails.passwordauth)
 
+        const loginid = await decryptMessage(
+            logindetails.platformemail,
+            logindetails.mailiv,
+            logindetails.mailauth
+        )
 
+        const loginpassword = await decryptMessage(
+            logindetails.platformpassword,
+            logindetails.passwordiv,
+            logindetails.passwordauth
+        )
 
-        return res.status(200).json({ success: true, loginid, loginpassword })
+        return res.status(200).json({
+            success: true,
+            loginid,
+            loginpassword
+        })
+
     } catch (error) {
         console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        })
     }
 }
+
 
 export const showplansofafinalgroup = async (req, res) => {
     try {
         const groupid = req.params.groupid
+
         if (!groupid) {
-            return res.status(404).json({ success: false, message: "all the fields are required" })
+            return res.status(404).json({
+                success: false,
+                message: "all the fields are required"
+            })
         }
-        const plans = await planmodel.find({ finalchatid: groupid }).populate('platform', 'platformname')
+
+        const plans = await planmodel
+            .find({ finalchatid: groupid })
+            .populate('platform', 'platformname')
+
         if (!plans || plans.length === 0) {
-            return res.status(404).json({ success: false, message: "no plans found for this group" })
+            return res.status(404).json({
+                success: false,
+                message: "no plans found for this group"
+            })
         }
-        return res.status(200).json({ success: true, plans })
+
+        return res.status(200).json({
+            success: true,
+            plans
+        })
+
     } catch (error) {
         console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        })
     }
 }
 
+export const addfinalgroupavatar = async (req, res) => {
+    try {
+
+        const userid = req.userId;
+        const { groupid } = req.body;
+
+        if (!groupid) {
+            return res.status(400).json({
+                success: false,
+                message: "groupid is required"
+            });
+        }
+
+        const imagepath = req.file?.path;
+
+        if (!imagepath) {
+            return res.status(400).json({
+                success: false,
+                message: "Group avatar image is required"
+            });
+        }
+
+        const group = await finalChatModel.findById(groupid);
+
+        if (!group) {
+            if (fs.existsSync(imagepath)) {
+                fs.unlinkSync(imagepath);
+            }
+
+            return res.status(404).json({
+                success: false,
+                message: "Group not found"
+            });
+        }
+
+        // Only admin can change the group avatar
+        if (group.admin.toString() !== userid.toString()) {
+
+            if (fs.existsSync(imagepath)) {
+                fs.unlinkSync(imagepath);
+            }
+
+            return res.status(403).json({
+                success: false,
+                message: "Only group admin can change the group avatar"
+            });
+        }
+
+        // Upload image to Cloudinary
+        const uploadedimage = await uploadtocloudinar(imagepath);
+
+        // Save Cloudinary URL
+        group.avatar = uploadedimage.secure_url;
+
+        await group.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Group avatar updated successfully",
+            avatar: group.avatar
+        });
+
+    } catch (error) {
+
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+};

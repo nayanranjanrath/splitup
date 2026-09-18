@@ -22,7 +22,7 @@ export default function registerRequestChat(io, socket) {
             const userId = socket.userId;
             const allowed =
                
-                gtoup.members.some(member => member.equals(userId));
+                group.members.some(member => member.equals(userId));
 
             if (!allowed) {
                 return socket.emit("message-error", {
@@ -138,6 +138,7 @@ export default function registerRequestChat(io, socket) {
         const existinglastsceen = await lastsceenmodel.findOne({ user: socket.userId , finalgroup: socket.currentRoom });
         if (existinglastsceen) {
             existinglastsceen.updatedAt = Date.now();
+            await existinglastsceen.save();
         }
         else {
             await lastsceenmodel.create({ user: socket.userId, finalgroup: socket.currentRoom });

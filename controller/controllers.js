@@ -16,6 +16,7 @@ import ratingmodel from "../models/rating.model.js";
 import tempChatModel from "../models/tempchat.model.js";
 import notificationmodel from "../models/notification.model.js";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import savedrequestmodel from "../models/savedrequest.model.js";
 import { report } from "process";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -40,15 +41,24 @@ export const generateaccessandrefreshtoken = async (user_id) => {
 export const extractuserid = (incomingaccessToken) => {
 
     if (!incomingaccessToken) {
-          return null;
+        return null;
     }
-    const decodeddata = jwt.verify(
-        incomingaccessToken,
-        process.env.ACCESSTOKEN_SECRET
-    );
-    return decodeddata
-}
 
+    try {
+
+        const decodeddata = jwt.verify(
+            incomingaccessToken,
+            process.env.ACCESSTOKEN_SECRET
+        );
+
+        return decodeddata;
+
+    } catch (error) {
+
+        // Send the actual JWT error back to middleware
+        throw error;
+    }
+};
 export const registeruser = async (req, res) => {
     try {
         const { profilename, fullname, email, password, phoneno } = req.body
@@ -244,23 +254,34 @@ export const revalidateuser = async (req, res) => {
     }
 }
 export const getuseravatar = async (req, res) => {
-     try {
-         const token = req.cookies.accesstoken;
-        const userid = extractuserid(token)
+    try {
+        const userid = req.userId;
+
         if (!userid) {
             return res.status(403).json({ success: false, message: "Unauthorized" });
         }
-        const user = await usermodel.findById(userid._id).select("avatar profilename");
+
+        const user = await usermodel.findById(userid).select("avatar profilename");
+
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
-        return res.status(200).json({ success: true, message: "User avatar found", user })
-     } catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "Internal server error" })
-     }
-}
 
+        return res.status(200).json({
+            success: true,
+            message: "User avatar found",
+            user
+        });
+
+    } catch (error) {
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+};
 export const logoutuser = async (req, res) => {
     try {
         const incomingRefreshToken = req.cookies.refreshtoken
@@ -296,15 +317,7 @@ export const logoutuser = async (req, res) => {
 export const platformsplitrequest = async (req, res) => {
     try {
 
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token);
-
-        if (!userid) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
+        const userid = req.userId;
 
         const requestid = req.body.requestid;
 
@@ -506,8 +519,6 @@ Do not assume it is a paid, full-tier account unless you see direct evidence.
                 !verificationData.has_premium_proof
             ) {
 
-                // Delete uploaded files because verification failed
-
                 for (const file of localImagePaths) {
 
                     if (fs.existsSync(file)) {
@@ -517,7 +528,7 @@ Do not assume it is a paid, full-tier account unless you see direct evidence.
                 }
 
                 await notificationmodel.create({
-                    user: userid._id,
+                    user: userid,
                     message:
                         "Your proof image was rejected due to the following reason: " +
                         verificationData.reasoning
@@ -565,9 +576,6 @@ Do not assume it is a paid, full-tier account unless you see direct evidence.
                 aiVerificationSkipped = true;
 
             } else {
-
-                // Any error other than 503
-                // should NOT bypass verification.
 
                 for (const file of localImagePaths) {
 
@@ -623,7 +631,7 @@ Do not assume it is a paid, full-tier account unless you see direct evidence.
 
         request.planvalidityday = planvalidityday;
 
-        request.requister = userid._id;
+        request.requister = userid;
 
         request.proofimage = imageUrls;
 
@@ -632,9 +640,6 @@ Do not assume it is a paid, full-tier account unless you see direct evidence.
         // --------------------------------------------------
         // OPTIONAL AI STATUS
         // --------------------------------------------------
-
-        // Only use these two fields if you add them
-        // to your platformsharerequest schema.
 
         request.aiVerified = aiVerified;
 
@@ -663,7 +668,7 @@ Do not assume it is a paid, full-tier account unless you see direct evidence.
 
         await notificationmodel.create({
 
-            user: userid._id,
+            user: userid,
 
             message: notificationMessage
 
@@ -709,16 +714,22 @@ Do not assume it is a paid, full-tier account unless you see direct evidence.
 };
 export const selectplatform = async (req, res) => {
     try {
+        const userid = req.userId;
+
         // const requestid = req.body.requestid
         const platformid = req.body.platformid
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token)
+
         console.log("userid", userid)
 
-        const user = await usermodel.findById(userid._id);
+        const user = await usermodel.findById(userid);
+
         if (!user) {
-            return res.status(401).json({ success: false, message: "Unauthorized" })
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
         }
+
         // const request = await platformsharerequestmodel.findById(requestid)
         // if (!request) {
         //     return res.status(400).json({ success: false, message: "Request not found" })
@@ -727,67 +738,96 @@ export const selectplatform = async (req, res) => {
         //     console.log("cant edit others platform you know ")
         //     return res.status(401).json({ success: false, message: "Unauthorized" })
         // }
+
         const platformdetails = await platformmodel.findById(platformid)
+
         if (!platformdetails) {
             console.log("platform not found")
-            return res.status(400).json({ success: false, message: "Platform not found please add one " })
+            return res.status(400).json({
+                success: false,
+                message: "Platform not found please add one "
+            })
         }
 
         const expiresAt = new Date(
             Date.now() + 30 * 24 * 60 * 60 * 1000
         );
+
         const newrequest = new platformsharerequestmodel({
 
-            requister: userid._id,
+            requister: userid,
             platformname: platformid,
             expiresAt: expiresAt
         })
-        await newrequest.save({ validateBeforeSave: false });
 
-        return res.status(200).json({ success: true, message: "request added successfully", newrequest });
-        // request.platformname = platformid
-        // await request.save()
-        // return res.status(200).json({
-        //     success: true,
-        //     message: "Platform added successfully",
-        //     request
-        // });
+        await newrequest.save({
+            validateBeforeSave: false
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "request added successfully",
+            newrequest
+        });
+
     } catch (error) {
         console.log(error);
 
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        })
     }
-
-
 }
-
 export const createplatform = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token)
-        const user = await usermodel.findById(userid._id);
+        const userid = req.userId;
+
+        const user = await usermodel.findById(userid);
+
         if (!user) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
-        const { platformname, platformdescription } = req.body
+
+        const {
+            platformname,
+            platformdescription
+        } = req.body
+
         if (!platformname) {
-            return res.status(400).json({ success: false, message: "platformname is required" })
+            return res.status(400).json({
+                success: false,
+                message: "platformname is required"
+            })
         }
+
         const platform = new platformmodel({
             platformname,
             platformdescription,
-
         })
+
         const savedplatform = await platform.save();
+
         await redis.del("allplatform");
-        return res.status(200).json({ success: true, message: "Platform created successfully", savedplatform });
+
+        return res.status(200).json({
+            success: true,
+            message: "Platform created successfully",
+            savedplatform
+        });
+
     } catch (error) {
         console.log(error);
 
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        })
     }
 }
-
 export const selectcategory = async (req, res) => {
     try {
         const incomingcategory = req.body.categoryid
@@ -859,7 +899,7 @@ export const showallplatform = async (req, res) => {
 
         res.set(
             "Cache-Control",
-            "private, max-age=3600"
+            "private, max-age=360"
         );
         return res.status(200).json({
             success: true,
@@ -902,7 +942,7 @@ export const showallcategory = async (req, res) => {
                 : null;
          res.set(
             "Cache-Control",
-            "private, max-age=3600"
+            "private, max-age=360"
         );
         return res.status(200).json({
             success: true,
@@ -997,50 +1037,80 @@ export const showprofile = async (req, res) => {
 
 export const rateuser = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
-        const { rateduserid, rating, review } = req.body;
+        const userid = req.userId;
+
+        const {
+            rateduserid,
+            rating,
+            review
+        } = req.body;
+
         if (!rateduserid || !rating) {
-            return res.status(400).json({ success: false, message: "Rated user ID and rating are required" });
+            return res.status(400).json({
+                success: false,
+                message: "Rated user ID and rating are required"
+            });
         }
-        const userid = extractuserid(token)
-        if (!userid) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
-        const user = await usermodel.findById(userid._id);
+
+        const user = await usermodel.findById(userid);
+
         if (!user) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
-        const rateduser = await usermodel.findById(rateduserid);
-        if (!rateduser) {
-            return res.status(404).json({ success: false, message: "Rated user not found" });
-        }
-        const existingrating = await ratingmodel.findOne({ user: rateduserid, rater: userid._id });
-        if (existingrating) {
-            // existingrating.rating = rating;
-            // existingrating.review = review 
-            // await existingrating.save();
-            return res.status(200).json({ success: true, message: "you alredy rated this user", existingrating });
-        }
-        const newrating = new ratingmodel({ user: rateduserid, rater: userid._id, rating, review });
-        await newrating.save();
-        return res.status(200).json({ success: true, message: "Rating added successfully" });
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ success: false, message: "internalserver error" })
-
-    }
-};
-export const showalredyratedornot = async(req,res)=>{
-       try {
-        const token = req.cookies.accesstoken;
-        const { rateduserid } = req.params;
-
-        if (!token) {
             return res.status(401).json({
                 success: false,
                 message: "Unauthorized"
             });
         }
+
+        const rateduser = await usermodel.findById(rateduserid);
+
+        if (!rateduser) {
+            return res.status(404).json({
+                success: false,
+                message: "Rated user not found"
+            });
+        }
+
+        const existingrating = await ratingmodel.findOne({
+            user: rateduserid,
+            rater: userid
+        });
+
+        if (existingrating) {
+            return res.status(200).json({
+                success: true,
+                message: "you alredy rated this user",
+                existingrating
+            });
+        }
+
+        const newrating = new ratingmodel({
+            user: rateduserid,
+            rater: userid,
+            rating,
+            review
+        });
+
+        await newrating.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Rating added successfully"
+        });
+
+    } catch (error) {
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "internalserver error"
+        })
+    }
+};
+export const showalredyratedornot = async (req, res) => {
+    try {
+        const userid = req.userId;
+
+        const { rateduserid } = req.params;
 
         if (!rateduserid) {
             return res.status(400).json({
@@ -1056,17 +1126,7 @@ export const showalredyratedornot = async(req,res)=>{
             });
         }
 
-        const userid = extractuserid(token);
-
-        if (!userid) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
-
-       
-        if (userid._id.toString() === rateduserid.toString()) {
+        if (userid.toString() === rateduserid.toString()) {
             return res.status(400).json({
                 success: false,
                 message: "You cannot rate yourself"
@@ -1084,7 +1144,7 @@ export const showalredyratedornot = async(req,res)=>{
 
         const existingrating = await ratingmodel.findOne({
             user: rateduserid,
-            rater: userid._id
+            rater: userid
         });
 
         if (existingrating) {
@@ -1132,34 +1192,68 @@ export const showreviews = async (req, res) => {
 
 export const editrating = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
-        const { rateduserid, rating, review } = req.body;
+        const userid = req.userId;
+
+        const {
+            rateduserid,
+            rating,
+            review
+        } = req.body;
+
         if (!rateduserid || !rating) {
-            return res.status(400).json({ success: false, message: "Rated user ID and rating are required" });
+            return res.status(400).json({
+                success: false,
+                message: "Rated user ID and rating are required"
+            });
         }
-        const userid = extractuserid(token)
-        if (!userid) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
-        const user = await usermodel.findById(userid._id);
+
+        const user = await usermodel.findById(userid);
+
         if (!user) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
+
         const rateduser = await usermodel.findById(rateduserid);
+
         if (!rateduser) {
-            return res.status(404).json({ success: false, message: "Rated user not found" });
+            return res.status(404).json({
+                success: false,
+                message: "Rated user not found"
+            });
         }
-        const existingrating = await ratingmodel.findOne({ user: rateduserid, rater: userid._id });
+
+        const existingrating = await ratingmodel.findOne({
+            user: rateduserid,
+            rater: userid
+        });
+
         if (!existingrating) {
-            return res.status(404).json({ success: false, message: "Rating not found" });
+            return res.status(404).json({
+                success: false,
+                message: "Rating not found"
+            });
         }
+
         existingrating.rating = rating;
         existingrating.review = review
+
         await existingrating.save();
-        return res.status(200).json({ success: true, message: "Rating updated successfully" });
+
+        return res.status(200).json({
+            success: true,
+            message: "Rating updated successfully"
+        });
+
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
 }
 // search controller ----
@@ -1349,81 +1443,109 @@ export const showrequest = async (req, res) => {
 
 export const applyforrequest = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token);
-        if (!userid) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
+        const userid = req.userId;
+
         const { requestid } = req.body;
-        const request = await platformsharerequestmodel.findById(requestid);
+
+        const request =
+            await platformsharerequestmodel.findById(requestid);
+
         if (!request) {
-            return res.status(404).json({ success: false, message: "Request not found" });
+            return res.status(404).json({
+                success: false,
+                message: "Request not found"
+            });
         }
 
         if (request.members.some(member =>
-            member.equals(userid._id))) {
-            return res.status(400).json({ success: false, message: "You have already accepted for this request" });
+            member.equals(userid))) {
+
+            return res.status(400).json({
+                success: false,
+                message: "You have already accepted for this request"
+            });
         }
-        const requestaplicant = await aplicantmodel.findOne({ request: requestid, platformname: request.platformname });
+
+        const requestaplicant =
+            await aplicantmodel.findOne({
+                request: requestid,
+                platformname: request.platformname
+            });
+
         if (!requestaplicant) {
+
             const newaplicant = new aplicantmodel({
                 request: requestid,
                 platformname: request.platformname,
-                applicant: [userid._id]
+                applicant: [userid]
             });
-            await newaplicant.save();
-            return res.status(200).json({ success: true, message: "Applied for request successfully" });
-        }
-        const existingaplicant = requestaplicant.applicant.some(aplicant => aplicant.equals(userid._id));
-        if (existingaplicant) {
-            return res.status(400).json({ success: false, message: "You have already applied for this request" });
 
+            await newaplicant.save();
+
+            return res.status(200).json({
+                success: true,
+                message: "Applied for request successfully"
+            });
         }
-        requestaplicant.applicant.push(userid._id);
+
+        const existingaplicant =
+            requestaplicant.applicant.some(
+                aplicant => aplicant.equals(userid)
+            );
+
+        if (existingaplicant) {
+            return res.status(400).json({
+                success: false,
+                message: "You have already applied for this request"
+            });
+        }
+
+        requestaplicant.applicant.push(userid);
+
         await requestaplicant.save();
 
-        return res.status(200).json({ success: true, message: "Applied for request successfully" });
-
+        return res.status(200).json({
+            success: true,
+            message: "Applied for request successfully"
+        });
 
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
-    }
 
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
 }
 
 export const showapplicants = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
-
-        if (!token) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
-
-        const userid = extractuserid(token);
-
-        if (!userid) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
+        const userid = req.userId;
 
         const { requestid } = req.params;
 
         const page = parseInt(req.query.page) || 1;
         const limit = 10;
         const skip = (page - 1) * limit;
-          const request = await platformsharerequestmodel.findById(requestid);
+
+        const request =
+            await platformsharerequestmodel.findById(requestid);
+
         if (!request) {
-            return res.status(404).json({ success: false, message: "Request not found" });
+            return res.status(404).json({
+                success: false,
+                message: "Request not found"
+            });
         }
-        if (request.requister.toString() !== userid._id.toString()) {
-            return res.status(402).json({ success: false, message: "Unauthorized only requester can accept applicant" });
+
+        if (request.requister.toString() !== userid.toString()) {
+            return res.status(402).json({
+                success: false,
+                message: "Unauthorized only requester can accept applicant"
+            });
         }
+
         const applicant = await aplicantmodel
             .findOne({ request: requestid })
             .populate("applicant", "profilename avatar reting")
@@ -1440,7 +1562,9 @@ export const showapplicants = async (req, res) => {
             skip,
             skip + limit
         );
+
         res.set("Cache-Control", "private, max-age=300");
+
         return res.status(200).json({
             success: true,
             message: "Applicants found",
@@ -1460,197 +1584,379 @@ export const showapplicants = async (req, res) => {
 };
 export const acceptapplicant = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token);
-        if (!userid) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
-        const { requestid, aplicantid } = req.body;
-        const request = await platformsharerequestmodel.findById(requestid);
+        const userid = req.userId;
+
+        const {
+            requestid,
+            aplicantid
+        } = req.body;
+
+        const request =
+            await platformsharerequestmodel.findById(requestid).populate("platformname", "platformname");
+
         if (!request) {
-            return res.status(404).json({ success: false, message: "Request not found" });
+            return res.status(404).json({
+                success: false,
+                message: "Request not found"
+            });
         }
-        if (request.requister.toString() !== userid._id.toString()) {
-            return res.status(402).json({ success: false, message: "Unauthorized only requester can accept applicant" });
+
+        if (request.requister.toString() !== userid.toString()) {
+            return res.status(402).json({
+                success: false,
+                message: "Unauthorized only requester can accept applicant"
+            });
         }
-        const aplicant = await aplicantmodel.findOne({ request: requestid, applicant: { $in: aplicantid } });
+
+        const aplicant =
+            await aplicantmodel.findOne({
+                request: requestid,
+                applicant: { $in: aplicantid }
+            });
+
         if (!aplicant) {
-            return res.status(404).json({ success: false, message: "Applicant not found" });
+            return res.status(404).json({
+                success: false,
+                message: "Applicant not found"
+            });
         }
-        console.log("members here", request.members.length + 1);
+
+        console.log(
+            "members here",
+            request.members.length + 1
+        );
+
         if (request.members.length + 1 >= request.totalslots) {
-            return res.status(400).json({ success: false, message: "Request has already reached maximum number of members" });
+            return res.status(400).json({
+                success: false,
+                message: "Request has already reached maximum number of members"
+            });
         }
-        if (request.members.some(member => member.equals(aplicantid))) {
-            return res.status(400).json({ success: false, message: "Applicant is already a member of this request" });
+
+        if (request.members.some(
+            member => member.equals(aplicantid)
+        )) {
+            return res.status(400).json({
+                success: false,
+                message: "Applicant is already a member of this request"
+            });
         }
+
         request.members.push(aplicantid);
+
         if (request.members.length + 1 === request.totalslots) {
             request.status = "full"
         }
+
         await request.save();
-        const tempmessage = await tempChatModel.findOne({ request: requestid });
+
+        const tempmessage =
+            await tempChatModel.findOne({
+                request: requestid
+            });
+
         if (!tempmessage) {
-            await tempChatModel.create({ request: requestid });
+            await tempChatModel.create({
+                request: requestid
+            });
         }
-        const notification = await notificationmodel.create({ user: aplicantid, message: "You have been accepted for" + request.platformname + " request", });
 
+        const notification =
+            await notificationmodel.create({
+                user: aplicantid,
+                message:
+                    "You have been accepted for" +
+                    request.platformname.platformname +
+                    " request",
+            });
 
-        return res.status(200).json({ success: true, message: "Applicant accepted successfully" });
+        return res.status(200).json({
+            success: true,
+            message: "Applicant accepted successfully"
+        });
+
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
 }
 export const showrequeststatus = async (req, res) => {
+
+    console.log("showrequeststatus called");
+
     try {
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token);
-        res.set("Cache-Control", "public, max-age=3600");
-        if (!userid) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
+
+        const userid = req.userId;
+
+        res.set("Cache-Control", "private, max-age=3600");
+
         const { requestid } = req.params;
-        const request = await platformsharerequestmodel.findById(requestid).select("-__v   -createdAt  -requister -proofimage -planvalidityday").populate("members", "profilename ");
+
+        if (!requestid) {
+            return res.status(400).json({
+                success: false,
+                message: "Request ID is required"
+            });
+        }
+
+        const request = await platformsharerequestmodel
+            .findById(requestid)
+            .select("-__v -createdAt -proofimage -planvalidityday")
+            .populate("members", "profilename");
+
         if (!request) {
-            return res.status(404).json({ success: false, message: "Request not found" });
+            return res.status(404).json({
+                success: false,
+                message: "Request not found"
+            });
         }
 
-        if (request.requister.toString() === userid._id.toString()) {
-
-            return res.status(200).json({ success: true, message: "You are the requester of this request", status: "requester" });
+        if (!request.requister) {
+            return res.status(500).json({
+                success: false,
+                message: "Requester information is missing"
+            });
         }
 
-        if (request.members.some(member => member.equals(userid._id))) {
-
-            return res.status(200).json({ success: true, message: "You are a member of this request", status: "accepted" });
+        if (request.requister.toString() === userid.toString()) {
+            return res.status(200).json({
+                success: true,
+                message: "You are the requester of this request",
+                status: "requester"
+            });
         }
-        return res.status(200).json({ success: true, message: "You are not a member of this request", status: "pending" });
+
+        if (
+            request.members.some(
+                member => member._id.toString() === userid.toString()
+            )
+        ) {
+            return res.status(200).json({
+                success: true,
+                message: "You are a member of this request",
+                status: "accepted"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "You are not a member of this request",
+            status: "pending"
+        });
+
     } catch (error) {
+
         console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
 }
-
 export const removeapplicant = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token);
-        if (!userid) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
-        const { requestid, aplicantid } = req.body;
-        const request = await platformsharerequestmodel.findById(requestid);
+        const userid = req.userId;
+
+        const {
+            requestid,
+            aplicantid
+        } = req.body;
+
+        const request =
+            await platformsharerequestmodel.findById(requestid);
+
         if (!request) {
-            return res.status(404).json({ success: false, message: "Request not found" });
+            return res.status(404).json({
+                success: false,
+                message: "Request not found"
+            });
         }
-        if (request.requister.toString() !== userid._id.toString()) {
-            return res.status(402).json({ success: false, message: "Unauthorized only requester can remove applicant" });
+
+        if (request.requister.toString() !== userid.toString()) {
+            return res.status(402).json({
+                success: false,
+                message: "Unauthorized only requester can remove applicant"
+            });
         }
-        const aplicant = await aplicantmodel.findOne({ request: requestid, applicant: { $in: aplicantid } });
+
+        const aplicant =
+            await aplicantmodel.findOne({
+                request: requestid,
+                applicant: { $in: aplicantid }
+            });
+
         if (!aplicant) {
-            return res.status(404).json({ success: false, message: "Applicant not found" });
+            return res.status(404).json({
+                success: false,
+                message: "Applicant not found"
+            });
         }
-        request.members = request.members.filter(member => !member.equals(aplicantid));
+
+        request.members =
+            request.members.filter(
+                member => !member.equals(aplicantid)
+            );
+
         await request.save();
-        return res.status(200).json({ success: true, message: "Applicant removed successfully" });
+
+        return res.status(200).json({
+            success: true,
+            message: "Applicant removed successfully"
+        });
+
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
 }
 
 export const deleterequest = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token);
-        if (!userid) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
+        const userid = req.userId;
+
         const { requestid } = req.body;
-        const request = await platformsharerequestmodel.findById(requestid);
+
+        const request =
+            await platformsharerequestmodel.findById(requestid);
+
         if (!request) {
-            return res.status(404).json({ success: false, message: "Request not found" });
-        }
-        if (request.requister.toString() !== userid._id.toString()) {
-            return res.status(402).json({ success: false, message: "Unauthorized only requester can remove request" });
-        }
-        const deletedrequest = await request.deleteOne();
-        if (!deletedrequest) {
-            return res.status(404).json({ success: false, message: "Request not found to delete" });
+            return res.status(404).json({
+                success: false,
+                message: "Request not found"
+            });
         }
 
-        return res.status(200).json({ success: true, message: "Request deleted successfully" });
+        if (request.requister.toString() !== userid.toString()) {
+            return res.status(402).json({
+                success: false,
+                message: "Unauthorized only requester can remove request"
+            });
+        }
+
+        const deletedrequest =
+            await request.deleteOne();
+
+        if (!deletedrequest) {
+            return res.status(404).json({
+                success: false,
+                message: "Request not found to delete"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Request deleted successfully"
+        });
 
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
 }
 
 export const myrequest = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token);
-        if (!userid) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
-        const requests = await platformsharerequestmodel.find({ requister: userid._id }).select("-__v   -createdAt  -requister -proofimage -planvalidityday").populate("members", "profilename avatar");
+        const userid = req.userId;
+
+        const requests =
+            await platformsharerequestmodel
+                .find({ requister: userid })
+                .select("-__v   -createdAt  -requister -proofimage -planvalidityday")
+                .populate("members", "profilename avatar");
+
         if (!requests) {
-            return res.status(404).json({ success: false, message: "No requests found" });
+            return res.status(404).json({
+                success: false,
+                message: "No requests found"
+            });
         }
+
         res.set("Cache-Control", "public, max-age=300");
-        return res.status(200).json({ success: true, message: "Requests found", requests });
+
+        return res.status(200).json({
+            success: true,
+            message: "Requests found",
+            requests
+        });
 
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
 }
 
 export const myapply = async (req, res) => {
     console.log("myapply called");
+
     try {
-        const token = req.cookies.accesstoken;
-        const userid = extractuserid(token);
-        if (!userid) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+        const userid = req.userId;
+
+        const requests =
+            await aplicantmodel
+                .find({
+                    applicant: userid
+                })
+                .populate({
+                    path: "request",
+                    select: "-proofimage -planvalidityday -__v",
+                    populate: [
+                        {
+                            path: "requister",
+                            select: "profilename avatar"
+                        },
+                        {
+                            path: "platformname",
+                            select: "platformname platformimage"
+                        },
+                        {
+                            path: "members",
+                            select: "profilename"
+                        }
+                    ]
+                })
+                .select("-__v -createdAt");
+
+        if (requests.length === 0) {
+            return res.status(204).json({
+                success: false,
+                message: "No requests found"
+            });
         }
-        const requests = await aplicantmodel
-            .find({
-                applicant: userid._id
-            })
-            .populate({
-                path: "request",
-                select: "-proofimage -planvalidityday -__v",
-                populate: [
-                    {
-                        path: "requister",
-                        select: "profilename avatar"
-                    },
-                    {
-                        path: "platformname",
-                        select: "platformname"
-                    },
-                    {
-                        path: "members",
-                        select: "profilename"
-                    }
-                ]
-            })
-            .select("-__v -createdAt");
-        if (requests.length===0) {
-            return res.status(204).json({ success: false, message: "No requests found" });
-        }
-        res.set("Cache-Control", "public, max-age=300");
-        return res.status(200).json({ success: true, message: "Requests found", requests });
+
+
+
+        return res.status(200).json({
+            success: true,
+            message: "Requests found",
+            requests
+        });
 
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
 }
-
 export const showplatformimage = async (req, res) => {
     try {
         const { platformid } = req.params;
@@ -1678,7 +1984,7 @@ try {
     if (!cloudinaryurl) {
         return res.status(500).json({ success: false, message: "Failed to upload image to Cloudinary" });
     }
-    platform.platformimage = cloudinaryurl;
+    platform.platformimage = cloudinaryurl.secure_url;
     await platform.save();
     return res.status(200).json({ success: true, message: "Platform image added successfully", platform });
 } catch (error) {
@@ -1690,30 +1996,287 @@ try {
 
 export const alredyappliedornot = async (req, res) => {
     try {
-
-        const token = req.cookies.accesstoken;
-
-        // No access token
-        if (!token) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
-
-        // Extract user ID
-        const userid = extractuserid(token);
-
-        if (!userid) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
+        const userid = req.userId;
 
         const requestid = req.params.requestid;
 
-        // Find request
+        const request =
+            await platformsharerequestmodel.findById(requestid);
+
+        if (!request) {
+            return res.status(404).json({
+                success: false,
+                message: "Request not found"
+            });
+        }
+        if(request.requister.toString() === userid.toString()){
+            return res.status(200).json({
+                success: true,
+                message: "You are the requester of this request"
+            });
+        }
+        const alreadyAccepted =
+            (request.members || []).some(
+                member => member.equals(userid)
+            );
+
+        if (alreadyAccepted) {
+            return res.status(400).json({
+                success: false,
+                message: "You have already accepted for this request"
+            });
+        }
+        const applicant = await aplicantmodel.findOne({
+            request: requestid,
+            applicant: { $in: [userid] }
+        });
+
+        if (applicant) {
+            return res.status(400).json({
+                success: false,
+                message: "You have already applied for this request"
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            message: "You can apply for this request"
+        });
+
+    } catch (error) {
+
+        console.error(
+            "alredyappliedornot error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+};
+export const addupiid = async (req, res) => {
+    try {
+        const userid = req.userId;
+
+        const { upiid } = req.body;
+
+        if (!upiid) {
+            return res.status(400).json({
+                success: false,
+                message: "UPI ID is required"
+            });
+        }
+
+        const user =
+            await usermodel.findById(userid);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        user.upiid = upiid;
+
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "UPI ID added successfully",
+            user
+        });
+
+    } catch (error) {
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+}
+
+export const updateupiid = async (req, res) => {
+    try {
+        const userid = req.userId;
+
+        const { upiid } = req.body;
+
+        if (!upiid) {
+            return res.status(400).json({
+                success: false,
+                message: "UPI ID is required"
+            });
+        }
+
+        const user =
+            await usermodel.findByIdAndUpdate(
+                userid,
+                { upiid: upiid },
+                { new: true }
+            );
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "UPI ID updated successfully",
+            user
+        });
+
+    } catch (error) {
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+}
+export const showupiid = async (req, res) => {
+    try {
+
+        const sellerid = req.params.userid;
+
+        if (!sellerid) {
+            return res.status(400).json({
+                success: false,
+                message: "User ID is required"
+            });
+        }
+
+        const seller =
+            await usermodel.findById(sellerid)
+                .select("upiid");
+
+        if (!seller) {
+            return res.status(404).json({
+                success: false,
+                message: "Seller not found"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "UPI ID found",
+            seller
+        });
+
+    } catch (error) {
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+}
+
+export const showrequestdetails = async (req, res) => {
+    try {
+        const { requestid } = req.params;
+
+        if (!requestid) {
+            return res.status(400).json({
+                success: false,
+                message: "Request ID is required"
+            }); 
+        }
+
+        const request = await platformsharerequestmodel.findById(requestid)
+            .populate("requister", "profilename avatar")
+            .populate("platformname", "platformname platformimage")
+            .populate("members", "profilename avatar");
+
+        if (!request) {
+            return res.status(404).json({
+                success: false,
+                message: "Request not found"
+            });
+        }
+        
+        return res.status(200).json({
+            success: true,
+            message: "Request found",
+            request
+        });
+    } catch (error) {
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+}
+
+
+export const deletefalserequests = async (req, res) => {
+
+    try {
+
+        const cleanupKey = "false_requests_cleanup";
+
+        // Check if cleanup was recently performed
+        const alreadyCleaned = await redis.get(cleanupKey);
+
+        if (alreadyCleaned) {
+            return res.status(200).json({
+                success: true,
+                message: "Cleanup already performed recently"
+            });
+        }
+
+        // Delete false requests
+        const falserequests = await platformsharerequestmodel.deleteMany({
+            proofimage: null,
+            planvalidityday: null,
+            totalslots: null,
+            planprice: null,
+            planname: null
+        });
+
+        // Set Redis key for 10 minutes
+        await redis.set(cleanupKey, "1", "EX", 600);
+
+        return res.status(200).json({
+            success: true,
+            message: "False requests deleted successfully",
+            deletedCount: falserequests.deletedCount
+        });
+
+    } catch (error) {
+
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+};
+
+
+export const saverequest = async (req, res) => {
+    try {
+
+        const userid = req.userId;
+        const { requestid } = req.body;
+
+        if (!requestid) {
+            return res.status(400).json({
+                success: false,
+                message: "requestid is required"
+            });
+        }
+
+        // Check whether request exists
         const request = await platformsharerequestmodel.findById(requestid);
 
         if (!request) {
@@ -1723,32 +2286,39 @@ export const alredyappliedornot = async (req, res) => {
             });
         }
 
-        // Check whether user is already a member
-        const alreadyAccepted = (request.members || []).some(
-            (member) => member.equals(userid)
-        );
+        // Check whether already saved
+        const alreadySaved = await savedrequestmodel.findOne({
+            user: userid,
+            request: requestid
+        });
 
-        if (alreadyAccepted) {
+        if (alreadySaved) {
             return res.status(400).json({
                 success: false,
-                message: "You have already accepted for this request"
+                message: "Request already saved"
             });
         }
 
-        return res.status(200).json({
+        // Save request
+        await savedrequestmodel.create({
+            user: userid,
+            request: requestid
+        });
+
+        return res.status(201).json({
             success: true,
-            message: "You can apply for this request"
+            message: "Request saved successfully"
         });
 
     } catch (error) {
 
-        console.error("alredyappliedornot error:", error);
+        console.log(error);
 
-        // Handle expired JWT specifically
-        if (error.name === "TokenExpiredError") {
-            return res.status(401).json({
+        // Handles duplicate key in case two requests arrive together
+        if (error.code === 11000) {
+            return res.status(400).json({
                 success: false,
-                message: "Access token expired"
+                message: "Request already saved"
             });
         }
 
@@ -1758,76 +2328,65 @@ export const alredyappliedornot = async (req, res) => {
         });
     }
 };
-export const addupiid = async(req,res)=>{
-    try {
-          const token = req.cookies.accesstoken;
-          const { upiid } = req.body;
-          if (!upiid) {
-            return res.status(400).json({ success: false, message: "UPI ID is required" });
-        }
-        if (!token) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        const userid = extractuserid(token);
-        if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        const user = await usermodel.findById(userid._id);
-        if (!user) {
-            return res.status(404).json({ success: false, message: "User not found" });
-        }
-        user.upiid = upiid;
-        await user.save();
-        return res.status(200).json({ success: true, message: "UPI ID added successfully", user });
-    } catch (error) {
-            
-        return res.status(500).json({ success: false, message: "Internal server error" });
-    }
-}
 
-export const updateupiid = async(req,res)=>{
-    try {
-        const token = req.cookies.accesstoken;
-        const { upiid } = req.body;
-        if (!upiid) {
-            return res.status(400).json({ success: false, message: "UPI ID is required" });
-        }
-        if (!token) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        const userid = extractuserid(token);
-        if (!userid) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        const user = await usermodel.findByIdandUpdate(userid._id, { upiid: upiid }, { new: true });
-        if (!user) {
-            return res.status(404).json({ success: false, message: "User not found" });
-        }
-        return res.status(200).json({ success: true, message: "UPI ID updated successfully", user });
-     
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
-    }
-}
 
-export const showupiid = async(req,res)=>{
+export const showsavedrequests = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
-        if (!token) {
-            return res.status(403).json({ success: false, message: "Unauthorized" });
-        }
-        const sellerid =req.params.userid;
-        if (!sellerid) {
-            return res.status(400).json({ success: false, message: "User ID is required" });
-        }
-        const seller = await usermodel.findById(sellerid).select("upiid");
-        if (!seller) {
-            return res.status(404).json({ success: false, message: "Seller not found" });
-        }
-        return res.status(200).json({ success: true, message: "UPI ID found", seller });
+
+        const userid = req.userId;
+
+        const savedrequests = await savedrequestmodel
+            .find({ user: userid })
+            .populate("request")
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            success: true,
+            count: savedrequests.length,
+            savedrequests
+        });
+
     } catch (error) {
+
         console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" }); 
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
-}
+};
+
+export const alredysavedornot = async (req, res) => {
+    try {
+
+        const userid = req.userId;
+        const { requestid } = req.params;
+
+        if (!requestid) {
+            return res.status(400).json({
+                success: false,
+                message: "requestid is required"
+            });
+        }
+
+        const savedrequest = await savedrequestmodel.findOne({
+            user: userid,
+            request: requestid
+        });
+
+        return res.status(200).json({
+            success: true,
+            saved: !!savedrequest
+        });
+
+    } catch (error) {
+
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+};

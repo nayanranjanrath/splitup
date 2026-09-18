@@ -2,6 +2,7 @@ import tempchatmodel from "../models/tempchat.model.js";
 import platformsharerequestmodel from "../models/platformsharerequest.model.js";
 import messageModel from "../models/message.model.js";
 import { encryptMessage, decryptMessage } from "../utility/messageencryption.js";
+import lastsceenmodel from "../models/lastsceen.controller.js";
 export default function registerRequestChat(io, socket) {
 
     socket.on("join-room", async (data) => {
@@ -151,6 +152,7 @@ export default function registerRequestChat(io, socket) {
           const existinglastsceen = await lastsceenmodel.findOne({ user: socket.userId , tempgroup: socket.currentRoom });
         if (existinglastsceen) {
             existinglastsceen.updatedAt = Date.now();
+            await existinglastsceen.save();
         }
         else {
             await lastsceenmodel.create({ user: socket.userId, tempgroup: socket.currentRoom });

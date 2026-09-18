@@ -22,21 +22,43 @@ catch(err){
 }}
 
 
+;
+
 export const convertToJpg = async (filePath) => {
-    const outputPath = filePath.replace(path.extname(filePath), ".jpg");
 
-   try {
-     await sharp(filePath)
-        .jpeg({
-            quality: 95
-        })
-        .toFile(outputPath);
-fs.unlinkSync(filePath);
-    return {outputPath};
-   } catch (error) {
-    fs.unlinkSync(filePath);
-    console.log(error)
-    throw error
-   }
+    const absolutePath = path.resolve(filePath);
+
+    const outputPath = path.join(
+        path.dirname(absolutePath),
+        `proof-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
+    );
+
+    try {
+
+        await sharp(absolutePath)
+            .jpeg({
+                quality: 90
+            })
+            .toFile(outputPath);
+
+        if (fs.existsSync(absolutePath)) {
+            fs.unlinkSync(absolutePath);
+        }
+
+        return {
+            outputPath
+        };
+
+    } catch (error) {
+
+        if (fs.existsSync(outputPath)) {
+            fs.unlinkSync(outputPath);
+        }
+
+        if (fs.existsSync(absolutePath)) {
+            fs.unlinkSync(absolutePath);
+        }
+
+        throw error;
+    }
 };
-

@@ -19,7 +19,9 @@ const finalChatSchema = new Schema({
     admin: {
         type: Schema.Types.ObjectId,
         ref: "usermodel"
-    }
+    },
+    avatar: {
+        type: String,}
 
 })
 

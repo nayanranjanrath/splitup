@@ -4,7 +4,6 @@ import finalChatModel from "../models/finalchat.model";
 import tempChatModel from "../models/tempchat.model";
 import messageModel from "../models/message.model";
 import platformsharerequestmodel from "../models/platformsharerequest.model";
-import { extractuserid } from "./controllers.js";
 import { decryptMessage } from "../utility/messageencryption.js";
 
 
@@ -14,30 +13,14 @@ import { decryptMessage } from "../utility/messageencryption.js";
 
 export const getunsceenfinalgroupmessaeg = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
         const groupid = req.params.groupid;
         const cursor = req.query.cursor;
+        const userid = req.userId;
 
         if (!groupid) {
             return res.status(400).json({
                 success: false,
                 message: "groupid is required"
-            });
-        }
-
-        if (!token) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
-
-        const userid = extractuserid(token);
-
-        if (!userid) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
             });
         }
 
@@ -53,7 +36,7 @@ export const getunsceenfinalgroupmessaeg = async (req, res) => {
         }
 
         const isMember = group.members.some(member =>
-            member.equals(userid._id)
+            member.equals(userid)
         );
 
         if (!isMember) {
@@ -64,7 +47,7 @@ export const getunsceenfinalgroupmessaeg = async (req, res) => {
         }
 
         const lastsceen = await lastsceenmodel.findOne({
-            user: userid._id,
+            user: userid,
             finalgroup: groupid
         });
 
@@ -136,8 +119,8 @@ export const getunsceenfinalgroupmessaeg = async (req, res) => {
 
 export const numberofunsceenmsginfinalgroup = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
         const groupid = req.params.groupid;
+        const userid = req.userId;
 
         if (!groupid) {
             return res.status(404).json({
@@ -146,24 +129,8 @@ export const numberofunsceenmsginfinalgroup = async (req, res) => {
             });
         }
 
-        if (!token) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
-
-        const userid = extractuserid(token);
-
-        if (!userid) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
-
         const last = await lastsceenmodel.findOne({
-            user: userid._id,
+            user: userid,
             finalgroup: groupid
         });
 
@@ -201,30 +168,14 @@ export const numberofunsceenmsginfinalgroup = async (req, res) => {
 
 export const showoldmessage = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
         const groupid = req.params.groupid;
         const cursor = req.query.cursor;
+        const userid = req.userId;
 
         if (!groupid || !cursor) {
             return res.status(400).json({
                 success: false,
                 message: "groupid and cursor are required"
-            });
-        }
-
-        if (!token) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
-
-        const userid = extractuserid(token);
-
-        if (!userid) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
             });
         }
 
@@ -240,7 +191,7 @@ export const showoldmessage = async (req, res) => {
         }
 
         const isMember = group.members.some(member =>
-            member.equals(userid._id)
+            member.equals(userid)
         );
 
         if (!isMember) {
@@ -300,36 +251,20 @@ export const showoldmessage = async (req, res) => {
 };
 
 
-// ============================================================
+
 // GET UNSEEN MESSAGES FROM TEMP GROUP
-// ============================================================
+
 
 export const getunsceentempgroupmessaeg = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
         const requestid = req.params.requestid;
         const cursor = req.query.cursor;
+        const userid = req.userId;
 
         if (!requestid) {
             return res.status(400).json({
                 success: false,
                 message: "requestid is required"
-            });
-        }
-
-        if (!token) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
-
-        const userid = extractuserid(token);
-
-        if (!userid) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
             });
         }
 
@@ -344,9 +279,9 @@ export const getunsceentempgroupmessaeg = async (req, res) => {
             });
         }
 
-        const isMember = group.members.some(member =>
-            member.equals(userid._id)
-        );
+        const isMember =
+            group.requister?.equals(userid) ||
+            group.members.some(member => member.equals(userid));
 
         if (!isMember) {
             return res.status(403).json({
@@ -374,7 +309,7 @@ export const getunsceentempgroupmessaeg = async (req, res) => {
         }
 
         const lastsceen = await lastsceenmodel.findOne({
-            user: userid._id,
+            user: userid,
             tempgroup: requestid
         });
 
@@ -438,37 +373,19 @@ export const getunsceentempgroupmessaeg = async (req, res) => {
         });
     }
 };
-
-
 // ============================================================
 // NUMBER OF UNSEEN MESSAGES IN TEMP GROUP
 // ============================================================
 
 export const numberofunsceenmsgintempgroup = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
         const requestid = req.params.requestid;
+        const userid = req.userId;
 
         if (!requestid) {
             return res.status(400).json({
                 success: false,
                 message: "all the fields are required"
-            });
-        }
-
-        if (!token) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
-
-        const userid = extractuserid(token);
-
-        if (!userid) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
             });
         }
 
@@ -490,7 +407,7 @@ export const numberofunsceenmsgintempgroup = async (req, res) => {
         }
 
         const last = await lastsceenmodel.findOne({
-            user: userid._id,
+            user: userid,
             tempgroup: requestid
         });
 
@@ -527,30 +444,15 @@ export const numberofunsceenmsgintempgroup = async (req, res) => {
 
 export const showoldmessageoftempgroup = async (req, res) => {
     try {
-        const token = req.cookies.accesstoken;
+
         const groupid = req.params.requestid;
         const cursor = req.query.cursor;
+        const userid = req.userId;
 
-        if (!groupid || !cursor) {
+        if (!groupid) {
             return res.status(400).json({
                 success: false,
-                message: "groupid and cursor are required"
-            });
-        }
-
-        if (!token) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
-            });
-        }
-
-        const userid = extractuserid(token);
-
-        if (!userid) {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized"
+                message: "groupid is required"
             });
         }
 
@@ -565,9 +467,10 @@ export const showoldmessageoftempgroup = async (req, res) => {
             });
         }
 
-        const isMember = group.members.some(member =>
-            member.equals(userid._id)
-        );
+        // Requester or member is allowed to view messages
+        const isMember =
+            group.requister?.equals(userid) ||
+            group.members.some(member => member.equals(userid));
 
         if (!isMember) {
             return res.status(403).json({
@@ -577,9 +480,8 @@ export const showoldmessageoftempgroup = async (req, res) => {
         }
 
         /*
-         * groupid here is actually requestid.
-         * messageModel.room contains tempChatModel._id,
-         * so get the temp chat first.
+         * groupid is actually the platform share request ID.
+         * messageModel.room contains the tempChatModel._id.
          */
         const tempGroup = await tempChatModel
             .findOne({
@@ -594,13 +496,20 @@ export const showoldmessageoftempgroup = async (req, res) => {
             });
         }
 
+        // Build message query
+        const messageQuery = {
+            room: tempGroup._id
+        };
+
+        // If cursor exists, fetch messages older than the cursor
+        if (cursor) {
+            messageQuery._id = {
+                $lt: cursor
+            };
+        }
+
         const messages = await messageModel
-            .find({
-                room: tempGroup._id,
-                _id: {
-                    $lt: cursor
-                }
-            })
+            .find(messageQuery)
             .sort({ _id: -1 })
             .limit(30)
             .lean();
@@ -622,7 +531,7 @@ export const showoldmessageoftempgroup = async (req, res) => {
             createdAt: message.createdAt
         }));
 
-        // Oldest -> newest for frontend
+        // Convert newest -> oldest into oldest -> newest
         decryptedMessages.reverse();
 
         return res.status(200).json({
@@ -633,6 +542,7 @@ export const showoldmessageoftempgroup = async (req, res) => {
         });
 
     } catch (error) {
+
         console.log(error);
 
         return res.status(500).json({
