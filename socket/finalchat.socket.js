@@ -1,7 +1,7 @@
 import finalChatModel from "../models/finalchat.model.js";
 import { encryptMessage, decryptMessage } from "../utility/messageencryption.js";
 import lastsceenmodel from "../models/lastsceen.controller.js";
-
+import finalmessageModel from "../models/finalgroupmessage.model.js";
 export default function registerRequestChat(io, socket) {
 
     socket.on("join-finalchat", async (data) => {
