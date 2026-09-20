@@ -7,12 +7,14 @@ import platformsharerequestmodel from "../models/platformsharerequest.model";
 import { decryptMessage } from "../utility/messageencryption.js";
 
 
+
 // ============================================================
 // GET UNSEEN MESSAGES FROM FINAL GROUP
 // ============================================================
 
 export const getunsceenfinalgroupmessaeg = async (req, res) => {
     try {
+
         const groupid = req.params.groupid;
         const cursor = req.query.cursor;
         const userid = req.userId;
@@ -24,6 +26,17 @@ export const getunsceenfinalgroupmessaeg = async (req, res) => {
             });
         }
 
+        if (!userid) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
+        }
+
+        // ------------------------------------------------------
+        // FIND FINAL GROUP
+        // ------------------------------------------------------
+
         const group = await finalChatModel
             .findById(groupid)
             .select("members admin _id groupname");
@@ -34,6 +47,10 @@ export const getunsceenfinalgroupmessaeg = async (req, res) => {
                 message: "No such group found"
             });
         }
+
+        // ------------------------------------------------------
+        // CHECK MEMBERSHIP
+        // ------------------------------------------------------
 
         const isMember = group.members.some(member =>
             member.equals(userid)
@@ -46,25 +63,36 @@ export const getunsceenfinalgroupmessaeg = async (req, res) => {
             });
         }
 
+        // ------------------------------------------------------
+        // GET LAST SEEN TIME
+        // ------------------------------------------------------
+
         const lastsceen = await lastsceenmodel.findOne({
             user: userid,
             finalgroup: groupid
         });
 
-        let lastsceentime;
+        const lastsceentime = lastsceen
+            ? lastsceen.updatedAt
+            : new Date(0);
 
-        if (!lastsceen) {
-            lastsceentime = new Date(0);
-        } else {
-            lastsceentime = lastsceen.updatedAt;
-        }
+        // ------------------------------------------------------
+        // BUILD QUERY
+        // IMPORTANT:
+        // finalmessageModel uses "room", NOT "groupid"
+        // ------------------------------------------------------
 
         const query = {
-            groupid,
+            room: groupid,
+
             createdAt: {
                 $gt: lastsceentime
             }
         };
+
+        // ------------------------------------------------------
+        // CURSOR PAGINATION
+        // ------------------------------------------------------
 
         if (cursor) {
             query._id = {
@@ -72,38 +100,69 @@ export const getunsceenfinalgroupmessaeg = async (req, res) => {
             };
         }
 
+        // ------------------------------------------------------
+        // GET UNSEEN MESSAGES
+        // ------------------------------------------------------
+
         const unsceenmessage = await finalmessageModel
             .find(query)
-            .sort({ _id: 1 })
+            .sort({
+                _id: 1
+            })
             .limit(30)
             .lean();
 
+        // ------------------------------------------------------
+        // NEXT CURSOR
+        // ------------------------------------------------------
+
         const nextCursor =
             unsceenmessage.length > 0
-                ? unsceenmessage[unsceenmessage.length - 1]._id
+                ? unsceenmessage[
+                    unsceenmessage.length - 1
+                ]._id
                 : null;
 
-        // Decrypt messages before sending them to frontend
-        const decryptedMessages = unsceenmessage.map(message => ({
-            _id: message._id,
-            sender: message.sender,
-            message: decryptMessage(
-                message.encryptedmessage,
-                message.iv,
-                message.authTag
-            ),
-            createdAt: message.createdAt
-        }));
+        // ------------------------------------------------------
+        // DECRYPT MESSAGES
+        // ------------------------------------------------------
+
+        const decryptedMessages =
+            unsceenmessage.map(message => ({
+                _id: message._id,
+
+                sender: message.sender,
+
+                message: decryptMessage(
+                    message.encryptedmessage,
+                    message.iv,
+                    message.authTag
+                ),
+
+                createdAt: message.createdAt
+            }));
+
+        // ------------------------------------------------------
+        // RESPONSE
+        // ------------------------------------------------------
 
         return res.status(200).json({
             success: true,
+
             messages: decryptedMessages,
-            hasMore: unsceenmessage.length === 30,
+
+            hasMore:
+                unsceenmessage.length === 30,
+
             nextCursor
         });
 
     } catch (error) {
-        console.log(error);
+
+        console.log(
+            "GET UNSEEN FINAL MESSAGE ERROR:",
+            error
+        );
 
         return res.status(500).json({
             success: false,
@@ -113,38 +172,92 @@ export const getunsceenfinalgroupmessaeg = async (req, res) => {
 };
 
 
+
 // ============================================================
 // NUMBER OF UNSEEN MESSAGES IN FINAL GROUP
 // ============================================================
 
 export const numberofunsceenmsginfinalgroup = async (req, res) => {
     try {
+
         const groupid = req.params.groupid;
         const userid = req.userId;
 
         if (!groupid) {
-            return res.status(404).json({
+            return res.status(400).json({
                 success: false,
-                message: "all the fields are required"
+                message: "groupid is required"
             });
         }
+
+        if (!userid) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
+        }
+
+        // ------------------------------------------------------
+        // CHECK GROUP
+        // ------------------------------------------------------
+
+        const group = await finalChatModel
+            .findById(groupid)
+            .select("members _id");
+
+        if (!group) {
+            return res.status(404).json({
+                success: false,
+                message: "No such group found"
+            });
+        }
+
+        // ------------------------------------------------------
+        // CHECK MEMBERSHIP
+        // ------------------------------------------------------
+
+        const isMember = group.members.some(member =>
+            member.equals(userid)
+        );
+
+        if (!isMember) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not a member of this group"
+            });
+        }
+
+        // ------------------------------------------------------
+        // GET LAST SEEN
+        // ------------------------------------------------------
 
         const last = await lastsceenmodel.findOne({
             user: userid,
             finalgroup: groupid
         });
 
-        // If there is no last-seen record, consider all messages unseen
         const lastsceentime = last
             ? last.updatedAt
             : new Date(0);
 
-        const unseenmessage = await finalmessageModel.countDocuments({
-            groupid: groupid,
-            createdAt: {
-                $gt: lastsceentime
-            }
-        });
+        // ------------------------------------------------------
+        // COUNT UNSEEN
+        // IMPORTANT:
+        // finalmessageModel uses "room"
+        // ------------------------------------------------------
+
+        const unseenmessage =
+            await finalmessageModel.countDocuments({
+                room: groupid,
+
+                createdAt: {
+                    $gt: lastsceentime
+                }
+            });
+
+        // ------------------------------------------------------
+        // RESPONSE
+        // ------------------------------------------------------
 
         return res.status(200).json({
             success: true,
@@ -152,14 +265,19 @@ export const numberofunsceenmsginfinalgroup = async (req, res) => {
         });
 
     } catch (error) {
-        console.log(error);
+
+        console.log(
+            "COUNT FINAL UNSEEN MESSAGE ERROR:",
+            error
+        );
 
         return res.status(500).json({
             success: false,
-            message: "internal server error"
+            message: "Internal server error"
         });
     }
 };
+
 
 
 // ============================================================
@@ -168,6 +286,7 @@ export const numberofunsceenmsginfinalgroup = async (req, res) => {
 
 export const showoldmessage = async (req, res) => {
     try {
+
         const groupid = req.params.groupid;
         const cursor = req.query.cursor;
         const userid = req.userId;
@@ -179,6 +298,17 @@ export const showoldmessage = async (req, res) => {
             });
         }
 
+        if (!userid) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
+        }
+
+        // ------------------------------------------------------
+        // FIND GROUP
+        // ------------------------------------------------------
+
         const group = await finalChatModel
             .findById(groupid)
             .select("members admin _id groupname");
@@ -189,6 +319,10 @@ export const showoldmessage = async (req, res) => {
                 message: "No such group found"
             });
         }
+
+        // ------------------------------------------------------
+        // CHECK MEMBERSHIP
+        // ------------------------------------------------------
 
         const isMember = group.members.some(member =>
             member.equals(userid)
@@ -201,47 +335,85 @@ export const showoldmessage = async (req, res) => {
             });
         }
 
-        const messages = await finalmessageModel
-            .find({
-                groupid,
-                _id: {
-                    $lt: cursor
-                }
-            })
-            .sort({ _id: -1 })
-            .limit(30)
-            .lean();
+        // ------------------------------------------------------
+        // GET OLD MESSAGES
+        // IMPORTANT:
+        // finalmessageModel uses "room"
+        // ------------------------------------------------------
+
+        const messages =
+            await finalmessageModel
+                .find({
+                    room: groupid,
+
+                    _id: {
+                        $lt: cursor
+                    }
+                })
+                .sort({
+                    _id: -1
+                })
+                .limit(30)
+                .lean();
+
+        // ------------------------------------------------------
+        // NEXT CURSOR
+        // ------------------------------------------------------
 
         const nextCursor =
             messages.length > 0
-                ? messages[messages.length - 1]._id
+                ? messages[
+                    messages.length - 1
+                ]._id
                 : null;
 
-        // Decrypt messages
-        const decryptedMessages = messages.map(message => ({
-            _id: message._id,
-            sender: message.sender,
-            message: decryptMessage(
-                message.encryptedmessage,
-                message.iv,
-                message.authTag
-            ),
-            createdAt: message.createdAt
-        }));
+        // ------------------------------------------------------
+        // DECRYPT
+        // ------------------------------------------------------
 
-        // We fetched newest -> oldest.
-        // Reverse so frontend receives oldest -> newest.
+        const decryptedMessages =
+            messages.map(message => ({
+                _id: message._id,
+
+                sender: message.sender,
+
+                message: decryptMessage(
+                    message.encryptedmessage,
+                    message.iv,
+                    message.authTag
+                ),
+
+                createdAt: message.createdAt
+            }));
+
+        // ------------------------------------------------------
+        // DATABASE QUERY WAS NEWEST → OLDEST
+        // REVERSE FOR FRONTEND
+        // ------------------------------------------------------
+
         decryptedMessages.reverse();
+
+        // ------------------------------------------------------
+        // RESPONSE
+        // ------------------------------------------------------
 
         return res.status(200).json({
             success: true,
+
             messages: decryptedMessages,
-            hasMore: messages.length === 30,
+
+            hasMore:
+                messages.length === 30,
+
             nextCursor
         });
 
     } catch (error) {
-        console.log(error);
+
+        console.log(
+            "SHOW OLD FINAL MESSAGE ERROR:",
+            error
+        );
 
         return res.status(500).json({
             success: false,
@@ -249,8 +421,6 @@ export const showoldmessage = async (req, res) => {
         });
     }
 };
-
-
 
 // GET UNSEEN MESSAGES FROM TEMP GROUP
 
