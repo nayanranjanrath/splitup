@@ -549,20 +549,34 @@ export const getunsceentempgroupmessaeg = async (req, res) => {
 
 export const numberofunsceenmsgintempgroup = async (req, res) => {
     try {
+
         const requestid = req.params.requestid;
         const userid = req.userId;
 
         if (!requestid) {
             return res.status(400).json({
                 success: false,
-                message: "all the fields are required"
+                message: "requestid is required"
+            });
+        }
+
+        if (!userid) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
             });
         }
 
         /*
-         * requestid is the request ID,
-         * so get the temp chat first.
+         * requestid = platform share request ID
+         *
+         * tempGroup._id = temporary chat ID
+         *
+         * messageModel.room = temporary chat ID
+         *
+         * lastsceenmodel.tempgroup = temporary chat ID
          */
+
         const tempGroup = await tempChatModel
             .findOne({
                 request: requestid
@@ -576,21 +590,41 @@ export const numberofunsceenmsgintempgroup = async (req, res) => {
             });
         }
 
+
+        /* -----------------------------------------------------
+           FIND LAST SEEN USING tempGroup._id
+        ----------------------------------------------------- */
+
         const last = await lastsceenmodel.findOne({
             user: userid,
-            tempgroup: requestid
+            tempgroup: tempGroup._id
         });
+
+
+        /* -----------------------------------------------------
+           IF USER HAS NEVER OPENED THIS CHAT
+
+           Count everything as unseen.
+        ----------------------------------------------------- */
 
         const lastsceentime = last
             ? last.updatedAt
             : new Date(0);
 
-        const unseenmessage = await messageModel.countDocuments({
-            room: tempGroup._id,
-            createdAt: {
-                $gt: lastsceentime
-            }
-        });
+
+        /* -----------------------------------------------------
+           COUNT ONLY MESSAGES AFTER LAST SEEN
+        ----------------------------------------------------- */
+
+        const unseenmessage =
+            await messageModel.countDocuments({
+                room: tempGroup._id,
+
+                createdAt: {
+                    $gt: lastsceentime
+                }
+            });
+
 
         return res.status(200).json({
             success: true,
@@ -598,15 +632,18 @@ export const numberofunsceenmsgintempgroup = async (req, res) => {
         });
 
     } catch (error) {
-        console.log(error);
+
+        console.log(
+            "NUMBER OF UNSEEN TEMP MESSAGES ERROR:",
+            error
+        );
 
         return res.status(500).json({
             success: false,
-            message: "internal server error"
+            message: "Internal server error"
         });
     }
 };
-
 
 // ============================================================
 // SHOW OLD MESSAGES FROM TEMP GROUP

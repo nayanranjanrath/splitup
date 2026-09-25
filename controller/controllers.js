@@ -1258,19 +1258,50 @@ export const editrating = async (req, res) => {
 }
 // search controller ----
 export const showrequest = async (req, res) => {
-    //use req.query  for all the fields like category minprise maxprise maxmember minmember etc and the searchtext which is the text by user 
-    //use the aggregate function to match searchtext either with platform or user 
-    //add a field called perpersoncost to the request which will be used to search the min and max price 
     try {
-        const { categoryid, minprice, maxprice, minmember, maxmember, searchtext, planvalidityday, slots } = req.query;
-        if (!categoryid && !minprice && !maxprice && !minmember && !maxmember && !searchtext && !planvalidityday && !slots) {
-            return res.status(400).json({ success: false, message: "At least one filter is required" });
+        const {
+            categoryid,
+            minprice,
+            maxprice,
+            minmember,
+            maxmember,
+            searchtext,
+            planvalidityday,
+            slots
+        } = req.query;
+
+      
+
+        if (
+            !categoryid &&
+            !minprice &&
+            !maxprice &&
+            !minmember &&
+            !maxmember &&
+            !searchtext &&
+            !planvalidityday &&
+            !slots
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "At least one filter is required"
+            });
         }
-        const page = Number(req.query.page) || 1;
-        const limit = Number(req.query.limit) || 10;
+
+   
+
+        const page = Math.max(Number(req.query.page) || 1, 1);
+        const limit = Math.min(
+            Math.max(Number(req.query.limit) || 10, 1),
+            50
+        );
 
         const skip = (page - 1) * limit;
+
         const pipeline = [];
+
+       
+
         pipeline.push(
             {
                 $lookup: {
@@ -1283,6 +1314,9 @@ export const showrequest = async (req, res) => {
             {
                 $unwind: "$platform"
             },
+
+         
+
             {
                 $lookup: {
                     from: "usermodels",
@@ -1295,111 +1329,322 @@ export const showrequest = async (req, res) => {
                 $unwind: "$requister"
             }
         );
-        if (searchtext) {
-            pipeline.push(
 
-                {
+       
 
-                    $match: {
-                        $or: [
-                            {
-                                "platform.platformname": {
-                                    $regex: searchtext,
-                                    $options: "i"
-                                }
-                            },
-                            {
-                                "requister.profilename": {
-                                    $regex: searchtext,
-                                    $options: "i"
-                                }
+        if (searchtext && searchtext.trim()) {
+            const escapedSearchText = searchtext
+                .trim()
+                .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+            pipeline.push({
+                $match: {
+                    $or: [
+                        {
+                            "platform.platformname": {
+                                $regex: escapedSearchText,
+                                $options: "i"
                             }
+                        },
+                        {
+                            "requister.profilename": {
+                                $regex: escapedSearchText,
+                                $options: "i"
+                            }
+                        }
+                    ]
+                }
+            });
+        }
 
-                        ]
+       
+
+        if (categoryid) {
+            let categoryIds = [];
+
+            if (Array.isArray(categoryid)) {
+                categoryIds = categoryid;
+            } else {
+                categoryIds = String(categoryid)
+                    .split(",")
+                    .map((id) => id.trim())
+                    .filter(Boolean);
+            }
+
+         
+            categoryIds = [...new Set(categoryIds)];
+
+            if (categoryIds.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid category filter"
+                });
+            }
+
+          
+            const invalidCategoryIds = categoryIds.filter(
+                (id) => !mongoose.isValidObjectId(id)
+            );
+
+            if (invalidCategoryIds.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "One or more category IDs are invalid",
+                    invalidCategoryIds
+                });
+            }
+
+           
+            const categoryObjectIds = categoryIds.map(
+                (id) => new mongoose.Types.ObjectId(id)
+            );
+
+        
+            const categories = await categorymodle
+                .find({
+                    _id: {
+                        $in: categoryObjectIds
                     }
                 })
+                .select("platform")
+                .lean();
 
-        }
-        if (categoryid) {
-            const category = await categorymodle.findById(categoryid).select("-__v -createdAt");
+            if (!categories || categories.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "No selected categories found"
+                });
+            }
 
+         
+            const platformIds = categories.flatMap(
+                (category) => Array.isArray(category.platform)
+                    ? category.platform
+                    : []
+            );
 
+           
+            const uniquePlatformIds = [
+                ...new Map(
+                    platformIds.map((id) => [
+                        id.toString(),
+                        id
+                    ])
+                ).values()
+            ];
+
+            if (uniquePlatformIds.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "No platforms found for selected categories"
+                });
+            }
+
+          
             pipeline.push({
                 $match: {
                     platformname: {
-                        $in: category.platform
+                        $in: uniquePlatformIds
                     }
                 }
-            })
+            });
         }
-        if (minprice) {
+
+        
+
+        if (minprice !== undefined && minprice !== "") {
+            const value = Number(minprice);
+
+            if (!Number.isFinite(value) || value < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid minprice"
+                });
+            }
+
             pipeline.push({
                 $match: {
                     $expr: {
-                        $gte: [{ $divide: ["$planprice", "$totalslots"] }, parseFloat(minprice)]
+                        $and: [
+                            {
+                                $gt: [
+                                    "$totalslots",
+                                    0
+                                ]
+                            },
+                            {
+                                $gte: [
+                                    {
+                                        $divide: [
+                                            "$planprice",
+                                            "$totalslots"
+                                        ]
+                                    },
+                                    value
+                                ]
+                            }
+                        ]
                     }
                 }
-            })
+            });
         }
-        if (maxprice) {
+
+  
+
+        if (maxprice !== undefined && maxprice !== "") {
+            const value = Number(maxprice);
+
+            if (!Number.isFinite(value) || value < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid maxprice"
+                });
+            }
+
             pipeline.push({
                 $match: {
                     $expr: {
-                        $lte: [{ $divide: ["$planprice", "$totalslots"] }, parseFloat(maxprice)]
+                        $and: [
+                            {
+                                $gt: [
+                                    "$totalslots",
+                                    0
+                                ]
+                            },
+                            {
+                                $lte: [
+                                    {
+                                        $divide: [
+                                            "$planprice",
+                                            "$totalslots"
+                                        ]
+                                    },
+                                    value
+                                ]
+                            }
+                        ]
                     }
                 }
-            })
+            });
         }
-        if (minmember) {
-            pipeline.push(
-                {
-                    $match: {
-                        $expr: {
-                            $gte: [
-                                {
-                                    $size: "$members"
-                                },
-                                Number(minmember)
-                            ]
-                        }
+
+   
+
+        if (minmember !== undefined && minmember !== "") {
+            const value = Number(minmember);
+
+            if (!Number.isInteger(value) || value < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid minmember"
+                });
+            }
+
+            pipeline.push({
+                $match: {
+                    $expr: {
+                        $gte: [
+                            {
+                                $size: {
+                                    $ifNull: [
+                                        "$members",
+                                        []
+                                    ]
+                                }
+                            },
+                            value
+                        ]
                     }
                 }
-            )
+            });
         }
-        if (maxmember) {
+
+  
+
+        if (maxmember !== undefined && maxmember !== "") {
+            const value = Number(maxmember);
+
+            if (!Number.isInteger(value) || value < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid maxmember"
+                });
+            }
+
             pipeline.push({
                 $match: {
                     $expr: {
                         $lte: [
                             {
-                                $size: "$members"
+                                $size: {
+                                    $ifNull: [
+                                        "$members",
+                                        []
+                                    ]
+                                }
                             },
-                            Number(maxmember)
+                            value
                         ]
                     }
                 }
-            })
+            });
         }
-        if (planvalidityday) {
+
+     
+
+        if (
+            planvalidityday !== undefined &&
+            planvalidityday !== ""
+        ) {
+            const value = Number(planvalidityday);
+
+            if (!Number.isFinite(value) || value < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid planvalidityday"
+                });
+            }
+
             pipeline.push({
                 $match: {
-                    planvalidityday: { $gte: parseFloat(planvalidityday) }
+                    planvalidityday: {
+                        $gte: value
+                    }
                 }
-            })
+            });
         }
-        if (slots) {
+
+       
+
+        if (slots !== undefined && slots !== "") {
+            const value = Number(slots);
+
+            if (!Number.isFinite(value) || value < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid slots"
+                });
+            }
+
             pipeline.push({
                 $match: {
-                    totalslots: { $gte: parseFloat(slots) }
+                    totalslots: {
+                        $gte: value
+                    }
                 }
-            })
+            });
         }
+
+      
 
         pipeline.push({
             $sort: {
                 createdAt: -1
             }
         });
+
+        
+
         pipeline.push({
             $skip: skip
         });
@@ -1407,11 +1652,15 @@ export const showrequest = async (req, res) => {
         pipeline.push({
             $limit: limit
         });
+
+       
+
         pipeline.push({
             $project: {
                 "platform.platformdescription": 0,
                 "platform.createdAt": 0,
                 "platform.__v": 0,
+
                 "requister.email": 0,
                 "requister.password": 0,
                 "requister.phoneno": 0,
@@ -1423,24 +1672,43 @@ export const showrequest = async (req, res) => {
             }
         });
 
-        const requests = await platformsharerequestmodel.aggregate(pipeline);
+        
+
+        const requests =
+            await platformsharerequestmodel.aggregate(
+                pipeline
+            );
+
         if (requests.length === 0) {
-            return res.status(404).json({ success: false, message: "No requests found" });
+            return res.status(404).json({
+                success: false,
+                message: "No requests found"
+            });
         }
-        else {
-            res.set("Cache-Control", "public, max-age=300");
-            return res.status(200).json({ success: true, message: "Requests found", requests });
-        }
 
+        res.set(
+            "Cache-Control",
+            "public, max-age=300"
+        );
 
-
+        return res.status(200).json({
+            success: true,
+            message: "Requests found",
+            requests
+        });
 
     } catch (error) {
-        console.log(error);
-        return res.status(500).json({ success: false, message: "Internal server error" });
-    }
-}
+        console.error(
+            "SHOW REQUEST ERROR:",
+            error
+        );
 
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+};
 export const applyforrequest = async (req, res) => {
     try {
         const userid = req.userId;
@@ -1584,6 +1852,7 @@ export const showapplicants = async (req, res) => {
 };
 export const acceptapplicant = async (req, res) => {
     try {
+
         const userid = req.userId;
 
         const {
@@ -1591,8 +1860,16 @@ export const acceptapplicant = async (req, res) => {
             aplicantid
         } = req.body;
 
-        const request =
-            await platformsharerequestmodel.findById(requestid).populate("platformname", "platformname");
+        if (!requestid || !aplicantid) {
+            return res.status(400).json({
+                success: false,
+                message: "requestid and aplicantid are required"
+            });
+        }
+
+        const request = await platformsharerequestmodel
+            .findById(requestid)
+            .populate("platformname", "platformname");
 
         if (!request) {
             return res.status(404).json({
@@ -1601,18 +1878,19 @@ export const acceptapplicant = async (req, res) => {
             });
         }
 
+        // Only requester can accept applicants
         if (request.requister.toString() !== userid.toString()) {
-            return res.status(402).json({
+            return res.status(403).json({
                 success: false,
-                message: "Unauthorized only requester can accept applicant"
+                message: "Unauthorized, only requester can accept applicant"
             });
         }
 
-        const aplicant =
-            await aplicantmodel.findOne({
-                request: requestid,
-                applicant: { $in: aplicantid }
-            });
+        // Find applicant
+        const aplicant = await aplicantmodel.findOne({
+            request: requestid,
+            applicant: aplicantid
+        });
 
         if (!aplicant) {
             return res.status(404).json({
@@ -1621,11 +1899,7 @@ export const acceptapplicant = async (req, res) => {
             });
         }
 
-        console.log(
-            "members here",
-            request.members.length + 1
-        );
-
+        // Check whether request is already full
         if (request.members.length + 1 >= request.totalslots) {
             return res.status(400).json({
                 success: false,
@@ -1633,27 +1907,38 @@ export const acceptapplicant = async (req, res) => {
             });
         }
 
-        if (request.members.some(
-            member => member.equals(aplicantid)
-        )) {
+        // Safety check: applicant is already a member
+        if (
+            request.members.some(member =>
+                member.equals(aplicantid)
+            )
+        ) {
             return res.status(400).json({
                 success: false,
                 message: "Applicant is already a member of this request"
             });
         }
 
+        // Add applicant to request members
         request.members.push(aplicantid);
 
+        // Mark request as full when all slots are occupied
         if (request.members.length + 1 === request.totalslots) {
-            request.status = "full"
+            request.status = "full";
         }
 
         await request.save();
 
-        const tempmessage =
-            await tempChatModel.findOne({
-                request: requestid
-            });
+        // Remove applicant from applicant list after acceptance
+        await aplicantmodel.deleteOne({
+            request: requestid,
+            applicant: aplicantid
+        });
+
+        // Create temporary chat if it doesn't already exist
+        const tempmessage = await tempChatModel.findOne({
+            request: requestid
+        });
 
         if (!tempmessage) {
             await tempChatModel.create({
@@ -1661,14 +1946,14 @@ export const acceptapplicant = async (req, res) => {
             });
         }
 
-        const notification =
-            await notificationmodel.create({
-                user: aplicantid,
-                message:
-                    "You have been accepted for" +
-                    request.platformname.platformname +
-                    " request",
-            });
+        // Notify accepted applicant
+        await notificationmodel.create({
+            user: aplicantid,
+            message:
+                "You have been accepted for " +
+                request.platformname.platformname +
+                " request"
+        });
 
         return res.status(200).json({
             success: true,
@@ -1676,6 +1961,7 @@ export const acceptapplicant = async (req, res) => {
         });
 
     } catch (error) {
+
         console.log(error);
 
         return res.status(500).json({
@@ -1683,7 +1969,7 @@ export const acceptapplicant = async (req, res) => {
             message: "Internal server error"
         });
     }
-}
+};
 export const showrequeststatus = async (req, res) => {
 
     console.log("showrequeststatus called");
@@ -2390,3 +2676,4 @@ export const alredysavedornot = async (req, res) => {
         });
     }
 };
+

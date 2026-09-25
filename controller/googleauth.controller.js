@@ -1,51 +1,66 @@
 import { OAuth2Client } from "google-auth-library";
-
 import usermodel from "../models/user.model.js";
-
 import { generateaccessandrefreshtoken } from "./controllers.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-
 export const googleAuth = async (req, res) => {
-
     try {
-
-        const token = req.body.token;
+        const { token } = req.body;
 
         if (!token) {
-
             return res.status(400).json({
+                success: false,
                 message: "Token is required"
             });
-
         }
+
+        // --------------------------------------------------
+        // VERIFY GOOGLE ID TOKEN
+        // --------------------------------------------------
 
         const ticket = await client.verifyIdToken({
-
             idToken: token,
-
             audience: process.env.GOOGLE_CLIENT_ID,
-
         });
-
-        if (!ticket) {
-
-            return res.status(401).json({
-                message: "Invalid token"
-            });
-
-        }
 
         const payload = ticket.getPayload();
 
         if (!payload) {
-
             return res.status(401).json({
+                success: false,
                 message: "Invalid token payload"
             });
-
         }
+
+        if (!payload.email || !payload.email_verified) {
+            return res.status(401).json({
+                success: false,
+                message: "Google email is not verified"
+            });
+        }
+
+        console.log("Google user:", {
+            email: payload.email,
+            googleId: payload.sub,
+            name: payload.name,
+        });
+
+        // --------------------------------------------------
+        // COOKIE OPTIONS
+        // --------------------------------------------------
+
+        const options = {
+            httpOnly: true,
+            secure: false,       // localhost
+            sameSite: "lax",
+            maxAge: 10 * 24 * 60 * 60 * 1000,
+            path: "/",
+        };
+
+        // --------------------------------------------------
+        // CHECK EXISTING USER
+        // --------------------------------------------------
 
         let existingUser = await usermodel.findOne({
             email: payload.email
@@ -53,26 +68,8 @@ export const googleAuth = async (req, res) => {
 
         if (existingUser) {
 
-            const options = {
-
-                httpOnly: true,
-
-                secure: false,
-
-                sameSite: "none",
-
-                maxAge: 10 * 24 * 60 * 60 * 1000,
-
-            }
-
             const { accesstoken, refreshtoken } =
                 await generateaccessandrefreshtoken(existingUser._id);
-
-            existingUser.refreshtoken = refreshtoken;
-
-            await existingUser.save({
-                validateBeforeSave: false
-            });
 
             return res
                 .status(200)
@@ -81,44 +78,43 @@ export const googleAuth = async (req, res) => {
                 .json({
                     success: true,
                     message: "User logged in successfully"
-                })
-
+                });
         }
 
+        // --------------------------------------------------
+        // CREATE TEMPORARY PROFILE NAME
+        // --------------------------------------------------
+        // profilename is required and max 10 chars.
+        // Google "sub" is unique, so this gives us a
+        // practically unique temporary username.
+
+        const tempProfileName =
+            "g" + String(payload.sub).slice(-9);
+
+        // --------------------------------------------------
+        // CREATE NEW GOOGLE USER
+        // --------------------------------------------------
 
         const newUser = await usermodel.create({
-
-            fullname: payload.name,
-
-            email: payload.email,
-
-            avatar: payload.picture,
-
-            googleId: payload.sub
-
+            profilename: tempProfileName,
+            fullname: payload.name?.trim() || "Google User",
+            email: payload.email.toLowerCase().trim(),
+            avatar: payload.picture || null,
+            googleId: payload.sub,
         });
 
+        console.log("Google user created:", newUser._id);
+
+        // --------------------------------------------------
+        // GENERATE OUR APP JWT TOKENS
+        // --------------------------------------------------
 
         const { accesstoken, refreshtoken } =
             await generateaccessandrefreshtoken(newUser._id);
 
-        newUser.refreshtoken = refreshtoken;
-
-        await newUser.save();
-
-
-        const options = {
-
-            httpOnly: true,
-
-            secure: false,
-
-            sameSite: "none",
-
-            maxAge: 10 * 24 * 60 * 60 * 1000,
-
-        }
-
+        // --------------------------------------------------
+        // RESPONSE
+        // --------------------------------------------------
 
         return res
             .status(200)
@@ -127,34 +123,33 @@ export const googleAuth = async (req, res) => {
             .json({
                 success: true,
                 message: "User registered successfully",
-                user: newUser
-            })
+                user: {
+                    _id: newUser._id,
+                    email: newUser.email,
+                    fullname: newUser.fullname,
+                    avatar: newUser.avatar,
+                    googleId: newUser.googleId,
+                }
+            });
 
     } catch (error) {
+        console.error("Google auth error:", error);
 
-        console.error(error);
-
-        res.status(500).json({
+        return res.status(500).json({
+            success: false,
             message: "Internal server error"
         });
-
     }
-
-}
-
+};
 
 export const adduserdetails = async (req, res) => {
-
     try {
-
         const { profilename, phoneno, upiid } = req.body;
 
         if (!profilename) {
-
             return res.status(400).json({
                 message: "Profile name and user ID are required"
             });
-
         }
 
         const userid = req.userId;
@@ -162,17 +157,13 @@ export const adduserdetails = async (req, res) => {
         const existingUser = await usermodel.findById(userid);
 
         if (!existingUser) {
-
             return res.status(404).json({
                 message: "User not found"
             });
-
         }
 
         existingUser.profilename = profilename;
-
         existingUser.phoneno = phoneno;
-
         existingUser.upiid = upiid;
 
         await existingUser.save();
@@ -182,56 +173,37 @@ export const adduserdetails = async (req, res) => {
         });
 
     } catch (error) {
-
         console.error(error);
 
         res.status(500).json({
             message: "Internal server error"
         });
-
     }
-
-}
-
+};
 
 export const avilibleprofilename = async (req, res) => {
-
     try {
-
         const { profilename } = req.params;
-
         if (!profilename) {
-
             return res.status(400).json({
                 message: "Profile name is required"
             });
-
         }
-
         const existingUser = await usermodel.findOne({
             profilename
         });
-
         if (existingUser) {
-
             return res.status(400).json({
                 message: "Profile name already exists"
             });
-
         }
-
         return res.status(200).json({
             message: "Profile name is available"
         });
-
     } catch (error) {
-
         console.error(error);
-
         res.status(500).json({
             message: "Internal server error"
         });
-
     }
-
 }

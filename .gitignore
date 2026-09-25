@@ -35,3 +35,70 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 
 ideaplan.md
+
+
+
+# ---------------------------------------------------------------
+
+# ════════════════════════════════════════════════════════════════
+# Frontend + media / junk files  (root .gitignore section)
+# ════════════════════════════════════════════════════════════════
+
+# ── Frontend: deps / build / secrets / logs ────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/*.tsbuildinfo
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+frontend/logs/
+frontend/*.log
+frontend/npm-debug.log*
+frontend/.vite/
+frontend/.eslintcache
+frontend/coverage/
+frontend/*.local
+
+# ── Images / media: ignored EVERYWHERE ─────────────────────────
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.bmp
+*.ico
+*.svg
+*.mp4
+*.webm
+*.mov
+
+# …except the frontend's required app assets (default avatars,
+# platform logos, default group avatar) — the app breaks without them
+!frontend/public/**
+
+# ── Uploads / temp / random files ──────────────────────────────
+uploads/
+public/uploads/
+temp/
+tmp/
+screenshots/
+*.zip
+*.rar
+*.7z
+*.pdf
+*.psd
+*.ai
+*.sketch
+*.bak
+*.tmp
+*.swp
+*.swo
+*~
+
+# ── OS / editor noise ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/

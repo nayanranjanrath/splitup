@@ -97,132 +97,303 @@ export const addnewgroup = async (req, res) => {
 
 
 export const addmembers = async (req, res) => {
+
     try {
 
-        const { groupid, candidate, requestid } = req.body;
+        const {
+            groupid,
+            candidate,
+            requestid
+        } = req.body;
+
+        /* =====================================================
+           VALIDATE REQUIRED FIELDS
+        ===================================================== */
 
         if (!groupid || !candidate || !requestid) {
-            return res.status(404).json({
+
+            return res.status(400).json({
                 success: false,
-                message: " all the fiedls are  required "
+                message: "All fields are required"
             });
+
         }
+
+
+        /* =====================================================
+           VALIDATE OBJECT IDS
+        ===================================================== */
+
+        if (
+            !mongoose.isValidObjectId(groupid) ||
+            !mongoose.isValidObjectId(candidate) ||
+            !mongoose.isValidObjectId(requestid)
+        ) {
+
+            return res.status(400).json({
+                success: false,
+                message: "Invalid group, candidate or request ID"
+            });
+
+        }
+
 
         const userid = req.userId;
 
-        const group = await finalChatModel.findById(groupid);
+        if (!userid) {
+
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
+
+        }
+
+
+        /* =====================================================
+           FIND FINAL GROUP
+        ===================================================== */
+
+        const group =
+            await finalChatModel.findById(groupid);
 
         if (!group) {
+
             return res.status(404).json({
                 success: false,
-                message: "no such group find "
+                message: "No such group found"
             });
+
         }
 
-        if (group.admin.toString() !== userid.toString()) {
+
+        /* =====================================================
+           CHECK ADMIN
+        ===================================================== */
+
+        if (
+            group.admin.toString() !==
+            userid.toString()
+        ) {
+
             return res.status(403).json({
                 success: false,
-                message: "Unauthorized only admin can add members"
+                message:
+                    "Unauthorized. Only admin can add members"
             });
+
         }
 
-        const request = await platformsharerequestmodel.findById(requestid);
+
+        /* =====================================================
+           FIND SHARE REQUEST
+        ===================================================== */
+
+        const request =
+            await platformsharerequestmodel
+                .findById(requestid);
 
         if (!request) {
+
             return res.status(404).json({
                 success: false,
-                message: "no such request find "
+                message: "No such request found"
             });
+
         }
 
-        const isMember = request.members.some(member =>
-            member.equals(candidate)
-        );
 
-        if (!isMember) {
-            return res.status(404).json({
-                success: false,
-                message: "Unauthorized only member can add members"
-            });
-        }
+        /* =====================================================
+           CHECK CANDIDATE IS CURRENT REQUEST MEMBER
+        ===================================================== */
 
-        const tempgroup = await tempChatModel.findOne({
-            request: request.tempchatid
-        });
-
-        if (!tempgroup) {
-            return res.status(404).json({
-                success: false,
-                message: "no such group find "
-            });
-        }
-
-        
-
-        const alreadyMember = group.members.some(member =>
-            member.equals(candidate)
-        );
-
-        if (alreadyMember) {
-            return res.status(400).json({
-                success: false,
-                message: "User is already a member of this group"
-            });
-        }
-
-        const existingplan = await planmodel.findOne({
-            finalchatid: groupid,
-            platform: request.platformname
-        });
-
-        if (!existingplan) {
-            const planexpaire = new Date(
-                request.createdAt.getTime() +
-                request.planvalidityday * 24 * 60 * 60 * 1000
+        const isMember =
+            request.members.some(member =>
+                member.equals(candidate)
             );
 
-            const plan = new planmodel({
-                finalchatid: groupid,
-                platform: request.platformname,
-                planname: request.planname,
-                planvalidity: request.planvalidityday,
-                expiresAt: planexpaire
+        if (!isMember) {
+
+            return res.status(403).json({
+                success: false,
+                message:
+                    "Candidate is not a member of this request"
             });
 
-            await plan.save()
         }
+
+
+        /* =====================================================
+           CHECK CANDIDATE IS NOT ALREADY IN FINAL GROUP
+        ===================================================== */
+
+        const alreadyMember =
+            group.members.some(member =>
+                member.equals(candidate)
+            );
+
+        if (alreadyMember) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "User is already a member of this group"
+            });
+
+        }
+
+
+        /* =====================================================
+           OPTIONAL TEMP GROUP CHECK
+           
+           Your tempChatModel uses:
+           request -> platform share request ID
+        ===================================================== */
+
+        const tempgroup =
+            await tempChatModel.findOne({
+                request: requestid
+            });
+
+        if (!tempgroup) {
+
+            return res.status(404).json({
+                success: false,
+                message:
+                    "No temporary group found for this request"
+            });
+
+        }
+
+
+        /* =====================================================
+           CHECK WHETHER PLAN ALREADY EXISTS
+        ===================================================== */
+
+        const existingplan =
+            await planmodel.findOne({
+                finalchatid: groupid,
+                platform: request.platformname
+            });
+
+
+        /* =====================================================
+           CREATE PLAN IF NEEDED
+        ===================================================== */
+
+        if (!existingplan) {
+
+            if (
+                !request.createdAt ||
+                !request.planvalidityday
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Request plan information is incomplete"
+                });
+
+            }
+
+
+            const planexpire =
+                new Date(
+                    request.createdAt.getTime() +
+                    request.planvalidityday *
+                    24 *
+                    60 *
+                    60 *
+                    1000
+                );
+
+
+            await planmodel.create({
+
+                finalchatid:
+                    groupid,
+
+                platform:
+                    request.platformname,
+
+                planname:
+                    request.planname,
+
+                planvalidity:
+                    request.planvalidityday,
+
+                expiresAt:
+                    planexpire
+            });
+
+        }
+
+
+        /* =====================================================
+           ADD MEMBER TO FINAL GROUP
+        ===================================================== */
 
         group.members.push(candidate);
 
-       const success = await group.save();
+        await group.save();
 
-        const notifcation = await notificationmodel.create({
+
+        /* =====================================================
+           REMOVE MEMBER FROM REQUEST
+        ===================================================== */
+
+        request.members.pull(candidate);
+
+        await request.save();
+
+
+        /* =====================================================
+           CREATE NOTIFICATION
+        ===================================================== */
+
+        await notificationmodel.create({
+
             user: candidate,
-            message: `You have been successfully added to a new group: ${group.groupname}`,
+
+            message:
+                `You have been successfully added to a new group: ${group.groupname}`
+
         });
 
-        await notifcation.save();
-        if (success) {
-            request.members.pull(candidate);
-            await request.save();
-        }
+
+        /* =====================================================
+           SUCCESS
+        ===================================================== */
 
         return res.status(200).json({
+
             success: true,
-            message: "group members added successfully"
+
+            message:
+                "Group member added successfully"
+
         });
 
-    }
-    catch (error) {
-        console.log(error);
+
+    } catch (error) {
+
+        console.error(
+            "ADD MEMBERS ERROR:",
+            error
+        );
 
         return res.status(500).json({
-            success: false,
-            message: "internalserver error"
-        });
-    }
-}
 
+            success: false,
+
+            message:
+                "Internal server error"
+
+        });
+
+    }
+
+};
 
 export const selectplatformtofinalgroup = async (req, res) => {
     try {
@@ -783,11 +954,11 @@ export const showlogindetails = async (req, res) => {
                 message: "no logindetails found"
             })
         }
-
-        if (
-            logindetails.planname.finalchatid.members.some(
+        const allowed =  logindetails.planname.finalchatid.members.some(
                 member => member.equals(userid)
             )
+        if (
+           !allowed
         ) {
             return res.status(401).json({
                 success: false,
@@ -932,4 +1103,66 @@ export const addfinalgroupavatar = async (req, res) => {
             message: "Internal server error"
         });
     }
+};
+
+export const showallusergroups = async (req, res) => {
+  try {
+    const userid = req.userId;
+
+    if (!userid) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const cursor = req.query.cursor;
+
+    // Find every final group where the logged-in user
+    // exists inside the members array.
+    const query = {
+      members: userid,
+    };
+
+    // Cursor pagination
+    if (cursor) {
+      if (!mongoose.isValidObjectId(cursor)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid cursor",
+        });
+      }
+
+      query._id = {
+        $gt: cursor,
+      };
+    }
+
+    const finalgroups = await finalChatModel
+      .find(query)
+      .select("groupname members admin avatar createdAt")
+      .sort({ _id: 1 })
+      .limit(10)
+      .lean();
+
+    const nextCursor =
+      finalgroups.length > 0
+        ? finalgroups[finalgroups.length - 1]._id
+        : null;
+
+    return res.status(200).json({
+      success: true,
+      message: "User groups found",
+      finalgroups,
+      hasMore: finalgroups.length === 10,
+      nextCursor,
+    });
+  } catch (error) {
+    console.error("SHOW ALL USER GROUPS ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
 };
