@@ -1,9 +1,6 @@
-import dns from "dns";
 
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
-import dotenv from "dotenv";
-dotenv.config();
+import "dotenv/config";
 
 import http from "http";
 import express from "express";
@@ -27,7 +24,7 @@ const app = express();
 app.use(
   cors({
       
-     origin: "http://localhost:5173",
+     origin:process.env.FRONTEND_URL,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -40,13 +37,14 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 
-connectdb();
-app.use((req, res, next) => {
-  console.log("REQUEST:", req.method, req.originalUrl);
-  console.log("BODY:", req.body);
-  next();
-});
+await connectdb();
 
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "SplitUp backend is healthy",
+  });
+});
 app.use(router);
 
 
@@ -55,7 +53,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     
-     origin: "http://localhost:5173",
+     origin:process.env.FRONTEND_URL,
     credentials: true,
   },
 });
@@ -63,8 +61,8 @@ const io = new Server(server, {
 registerBaseSocket(io);
 
 
-const port = 3000;
+const PORT = process.env.PORT || 3000;
 
-server.listen(port,"0.0.0.0", () => {
-  console.log(`Server is running on http://localhost:${port}`);
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`SplitUp backend is running on port ${PORT}`);
 });

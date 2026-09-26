@@ -1,0 +1,58 @@
+# ────────────────────────────────────────────────────────────────
+# SplitUp frontend (.gitignore)
+# Place this file at:  frontend/.gitignore
+# Patterns are relative to the frontend/ folder.
+# ────────────────────────────────────────────────────────────────
+
+# ── Dependencies ───────────────────────────────────────────────
+node_modules/
+
+# ── Build output ───────────────────────────────────────────────
+dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+
+# ── Environment / secrets (NEVER commit) ───────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Logs ───────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── Caches ─────────────────────────────────────────────────────
+.vite/
+.eslintcache
+.stylelintcache
+*.local
+
+# ── Test / coverage ────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ── Editor / IDE ───────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS files ───────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── Misc ───────────────────────────────────────────────────────
+*.zip
+.vercel
+.netlify
