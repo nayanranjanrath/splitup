@@ -453,7 +453,7 @@ export default function Landing() {
                 <p>
                   Questions, feedback, or partnership ideas — we read everything.
                   <br />
-                  <strong>hello@splitup.app</strong>
+                  <strong>splitup55@gmail.com</strong>
                 </p>
                 <p>
                   Typically replies within <strong>24 hours</strong>.
@@ -472,7 +472,7 @@ export default function Landing() {
                   const fd = new FormData(e.currentTarget);
                   const subject = encodeURIComponent(`SplitUp message from ${fd.get("name")}`);
                   const body = encodeURIComponent(`${fd.get("message")}\n\n— ${fd.get("name")} (${fd.get("email")})`);
-                  window.location.href = `mailto:hello@splitup.app?subject=${subject}&body=${body}`;
+                  window.location.href = `mailto:splitup55@gmail.com?subject=${subject}&body=${body}`;
                 }}
               >
                 <div className="field">

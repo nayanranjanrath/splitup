@@ -1,8 +1,10 @@
 /**
- * Dark-mode hero video, served same-origin through the Vite dev-server
- * proxy (see vite.config.js).
+ * Dark-mode hero video — immersive looping scene.
+ * Uses the DIRECT CloudFront URL so it works in production on any
+ * static host (the /cdn/hero.mp4 Vite proxy only existed in dev).
  */
-export const VIDEO_SRC = "/cdn/hero.mp4";
+export const VIDEO_SRC =
+  "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260808_112712_da9d53df-6d27-4b12-bdf6-aa9dc2622bdf.mp4";
 
 /**
  * Light-mode hero video — immersive looping scene (violet meadow / sunset),

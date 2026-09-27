@@ -181,42 +181,71 @@ export const verifyuser = async (req, res) => {
 }
 
 export const loginuser = async (req, res) => {
-    console.log("loginuser called")
+    console.log("loginuser called");
+
     try {
+        const { email, password } = req.body;
 
-
-        const { email, password } = req.body
         if (!email || !password) {
-            return res.status(400).json({ success: false, message: "All fields are required" })
-        }
-        const user = await usermodel.findOne({ email })
-        if (!user) {
-            return res.status(400).json({ success: false, message: "User not found" })
-        }
-        const ispasswordcorrect = await user.ispasswordcorrect(password)
-        if (!ispasswordcorrect) {
-            console.log("invalid password")
-            return res.status(400).json({ success: false, message: "Invalid password" })
+            return res.status(400).json({
+                success: false,
+                message: "All fields are required"
+            });
         }
 
-        const { accesstoken, refreshtoken } = await generateaccessandrefreshtoken(user._id)
-        const isProduction = process.env.NODE_ENV === "production";
+        const user = await usermodel.findOne({ email });
+
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        const ispasswordcorrect = await user.ispasswordcorrect(password);
+
+        if (!ispasswordcorrect) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid password"
+            });
+        }
+
+        const { accesstoken, refreshtoken } =
+            await generateaccessandrefreshtoken(user._id);
 
         const options = {
             httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
+            secure: true,
+            sameSite: "none",
             maxAge: 10 * 24 * 60 * 60 * 1000,
             path: "/",
         };
-        const notification = await notificationmodel.create({ user: user._id, message: "wellcome to splitup" })
-        return res.status(200).cookie("accesstoken", accesstoken, options).cookie("refreshtoken", refreshtoken, options).json({ success: true, message: "User logged in successfully", user })
-    } catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "Internal server error" })
-    }
 
-}
+        await notificationmodel.create({
+            user: user._id,
+            message: "welcome to splitup"
+        });
+
+        return res
+            .status(200)
+            .cookie("accesstoken", accesstoken, options)
+            .cookie("refreshtoken", refreshtoken, options)
+            .json({
+                success: true,
+                message: "User logged in successfully",
+                user
+            });
+
+    } catch (error) {
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+};
 
 export const revalidateuser = async (req, res) => {
     try {
@@ -243,14 +272,13 @@ export const revalidateuser = async (req, res) => {
             refreshtoken } = await generateaccessandrefreshtoken(user._id)
         const isProduction = process.env.NODE_ENV === "production";
 
-        const options = {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            maxAge: 10 * 24 * 60 * 60 * 1000,
-            path: "/",
-        };
-
+      const options = {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    maxAge: 10 * 24 * 60 * 60 * 1000,
+    path: "/",
+};
         return res.status(200).cookie("accesstoken", accesstoken, options).cookie("refreshtoken", refreshtoken, options).json({ success: true, message: "User revalidated successfully" })
 
     } catch (error) {
@@ -314,8 +342,8 @@ export const logoutuser = async (req, res) => {
 
         const clearOptions = {
             httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
+            secure: true,
+            sameSite: "none",
             path: "/",
         };
 
