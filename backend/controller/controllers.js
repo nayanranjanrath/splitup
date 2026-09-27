@@ -317,28 +317,41 @@ export const getuseravatar = async (req, res) => {
 };
 export const logoutuser = async (req, res) => {
     try {
-        const incomingRefreshToken = req.cookies.refreshtoken
+        const incomingRefreshToken = req.cookies.refreshtoken;
+
         if (!incomingRefreshToken) {
-            return res.status(401).json({ success: false, message: "Unauthorized" })
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
-        const decodeddata = await jwt.verify(
+
+        const decodeddata = jwt.verify(
             incomingRefreshToken,
             process.env.REFRESHTOKEN_SECRET
         );
-        const user = await usermodel.findById(decodeddata._id)
-        if (
-            incomingRefreshToken !==
-            user.refreshtoken
-        ) {
+
+        const user = await usermodel.findById(decodeddata._id);
+
+        if (!user) {
             return res.status(401).json({
                 success: false,
-                message: "Refresh token mismatch operation cant be done "
+                message: "Unauthorized"
             });
         }
-        user.refreshtoken = undefined
-        await user.save({ validateBeforeSave: false })
 
-        const isProduction = process.env.NODE_ENV === "production";
+        if (incomingRefreshToken !== user.refreshtoken) {
+            return res.status(401).json({
+                success: false,
+                message: "Refresh token mismatch, operation can't be done"
+            });
+        }
+
+        user.refreshtoken = undefined;
+
+        await user.save({
+            validateBeforeSave: false
+        });
 
         const clearOptions = {
             httpOnly: true,
@@ -355,13 +368,16 @@ export const logoutuser = async (req, res) => {
                 success: true,
                 message: "User logged out successfully"
             });
+
     } catch (error) {
-        console.log(error)
-        return res.status(500).json({ success: false, message: "internalserver error" })
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
-
-
-}
+};
 export const platformsplitrequest = async (req, res) => {
     try {
 
