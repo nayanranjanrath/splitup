@@ -272,13 +272,13 @@ export const revalidateuser = async (req, res) => {
             refreshtoken } = await generateaccessandrefreshtoken(user._id)
         const isProduction = process.env.NODE_ENV === "production";
 
-      const options = {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    maxAge: 10 * 24 * 60 * 60 * 1000,
-    path: "/",
-};
+        const options = {
+            httpOnly: true,
+            secure: true,
+            sameSite: "none",
+            maxAge: 10 * 24 * 60 * 60 * 1000,
+            path: "/",
+        };
         return res.status(200).cookie("accesstoken", accesstoken, options).cookie("refreshtoken", refreshtoken, options).json({ success: true, message: "User revalidated successfully" })
 
     } catch (error) {
@@ -379,22 +379,260 @@ export const logoutuser = async (req, res) => {
     }
 };
 export const platformsplitrequest = async (req, res) => {
+
+    let stage = "starting";
+
+    /*
+     * Files uploaded by multer.
+     * We keep the actual paths so they can be cleaned up later.
+     */
+    let localImagePaths = [];
+
+    /*
+     * Safely delete local uploaded files.
+     */
+    const cleanupFiles = () => {
+
+        for (const filePath of localImagePaths) {
+
+            try {
+
+                if (filePath && fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+
+            } catch (cleanupError) {
+
+                console.error(
+                    "Failed to delete temporary file:",
+                    filePath,
+                    cleanupError.message
+                );
+
+            }
+
+        }
+
+    };
+    console.log("========== UPLOAD DEBUG ==========");
+
+    console.log("cwd:", process.cwd());
+
+    console.log("req.file:", req.file);
+
+    console.log("req.files:", req.files);
+
+    if (Array.isArray(req.files)) {
+
+        for (const file of req.files) {
+
+            console.log({
+                originalname: file.originalname,
+                filename: file.filename,
+                path: file.path,
+                exists: file.path
+                    ? fs.existsSync(file.path)
+                    : false,
+                size: file.size
+            });
+
+        }
+
+    }
+
+    console.log("==================================");
+
     try {
 
-        const userid = req.userId;
+        // =========================================================
+        // 1. AUTHENTICATION
+        // =========================================================
 
-        const requestid = req.body.requestid;
+        stage = "authentication";
 
-        const request = await platformsharerequestmodel.findById(requestid);
+        /*
+         * Your middleware currently uses req.userId.
+         *
+         * This supports all of these possibilities:
+         *
+         * req.userId = "mongoObjectId"
+         *
+         * req.userId = { _id: "mongoObjectId" }
+         *
+         * req.userId = { id: "mongoObjectId" }
+         */
+
+        const rawUserId = req.userId;
+
+        const userid =
+            rawUserId?._id ||
+            rawUserId?.id ||
+            rawUserId;
+
+        if (!userid) {
+
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
+
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(userid)) {
+
+            return res.status(401).json({
+                success: false,
+                message: "Invalid user authentication"
+            });
+
+        }
+
+        console.log("========== PLATFORM SPLIT ==========");
+        console.log("userid:", userid);
+
+
+        // =========================================================
+        // 2. VERIFY USER EXISTS
+        // =========================================================
+
+        stage = "checking user";
+
+        const user = await usermodel
+            .findById(userid)
+            .select("_id");
+
+        if (!user) {
+
+            cleanupFiles();
+
+            return res.status(401).json({
+                success: false,
+                message: "User not found"
+            });
+
+        }
+
+
+        // =========================================================
+        // 3. GET REQUEST ID
+        // =========================================================
+
+        stage = "reading request id";
+
+        const requestid = req.body?.requestid;
+
+        console.log("requestid:", requestid);
+
+        if (!requestid) {
+
+            cleanupFiles();
+
+            return res.status(400).json({
+                success: false,
+                message: "Request ID is required"
+            });
+
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(requestid)) {
+
+            cleanupFiles();
+
+            return res.status(400).json({
+                success: false,
+                message: "Invalid request ID"
+            });
+
+        }
+
+
+        // =========================================================
+        // 4. FIND REQUEST
+        // =========================================================
+
+        stage = "finding split request";
+
+        const request =
+            await platformsharerequestmodel.findById(requestid);
 
         if (!request) {
-            return res.status(400).json({
+
+            cleanupFiles();
+
+            return res.status(404).json({
                 success: false,
                 message: "Request not found"
             });
+
         }
 
-        const platform = request.platformname;
+
+        // =========================================================
+        // 5. SECURITY CHECK
+        // =========================================================
+
+        stage = "checking request ownership";
+
+        if (
+            request.requister &&
+            request.requister.toString() !== userid.toString()
+        ) {
+
+            cleanupFiles();
+
+            return res.status(403).json({
+                success: false,
+                message: "You are not allowed to modify this request"
+            });
+
+        }
+
+
+        // =========================================================
+        // 6. GET PLATFORM NAME
+        // =========================================================
+
+        stage = "finding platform";
+
+        if (
+            !request.platformname ||
+            !mongoose.Types.ObjectId.isValid(request.platformname)
+        ) {
+
+            cleanupFiles();
+
+            return res.status(400).json({
+                success: false,
+                message: "Platform information is missing"
+            });
+
+        }
+
+        const platform = await platformmodel
+            .findById(request.platformname)
+            .select("platformname");
+
+        if (!platform) {
+
+            cleanupFiles();
+
+            return res.status(404).json({
+                success: false,
+                message: "Platform not found"
+            });
+
+        }
+
+        const platformName = platform.platformname;
+
+        console.log("platform:", platformName);
+
+
+        // =========================================================
+        // 7. READ FORM DATA
+        // =========================================================
+
+        stage = "reading form data";
 
         const {
             planname,
@@ -403,325 +641,757 @@ export const platformsplitrequest = async (req, res) => {
             totalslots
         } = req.body;
 
-        if (!planprice || !planvalidityday || !totalslots) {
+
+        if (
+            !planprice ||
+            !planvalidityday ||
+            !totalslots
+        ) {
+
+            cleanupFiles();
+
             return res.status(400).json({
                 success: false,
                 message: "All fields are required"
             });
+
         }
 
-        // --------------------------------------------------
-        // GET UPLOADED IMAGES
-        // --------------------------------------------------
 
-        const localImagePaths = req.files?.map(file => file.path) || [];
+        // =========================================================
+        // 8. GET MULTER FILES
+        // =========================================================
+
+        stage = "reading uploaded files";
+
+        /*
+         * Your frontend sends:
+         *
+         * fd.append("proofimages", file)
+         *
+         * Normally this becomes req.files[] if you use:
+         *
+         * upload.array("proofimages", 2)
+         *
+         * We also support:
+         *
+         * req.files.proofimages
+         *
+         * and
+         *
+         * req.file
+         *
+         * so this controller is more tolerant.
+         */
+
+        let uploadedFiles = [];
+
+        if (Array.isArray(req.files)) {
+
+            uploadedFiles = req.files;
+
+        } else if (
+            req.files &&
+            Array.isArray(req.files.proofimages)
+        ) {
+
+            uploadedFiles = req.files.proofimages;
+
+        } else if (req.file) {
+
+            uploadedFiles = [req.file];
+
+        }
+
+
+        /*
+         * Extract file paths.
+         */
+
+        localImagePaths = uploadedFiles
+            .map(file => file?.path)
+            .filter(Boolean);
+
+
+        console.log(
+            "uploaded file count:",
+            localImagePaths.length
+        );
+
+        console.log(
+            "uploaded paths:",
+            localImagePaths
+        );
+
 
         if (localImagePaths.length === 0) {
+
             return res.status(400).json({
                 success: false,
-                message: "Please upload at least one proof image."
+                message: "Please upload at least one proof image"
             });
+
         }
 
-        // --------------------------------------------------
-        // AI VERIFICATION
-        // --------------------------------------------------
+
+        // =========================================================
+        // 9. AI VERIFICATION
+        // =========================================================
 
         let aiVerified = false;
+
         let aiVerificationSkipped = false;
+
         let verificationData = null;
 
-        try {
 
-            const imageToVerify = localImagePaths[0];
+        /*
+         * We intentionally do NOT allow Gemini failure to kill
+         * the entire request.
+         *
+         * If Gemini is unavailable, the request can still be
+         * saved with:
+         *
+         * aiVerified = false
+         * aiVerificationSkipped = true
+         *
+         * This prevents a Gemini outage from causing HTTP 500
+         * for the entire SplitUp feature.
+         */
 
-            const imageBuffer = fs.readFileSync(imageToVerify);
+        stage = "AI verification";
 
-            const extension = path.extname(imageToVerify).toLowerCase();
 
-            const mimeType =
-                extension === ".png"
-                    ? "image/png"
-                    : extension === ".webp"
-                        ? "image/webp"
-                        : "image/jpeg";
+        const geminiApiKey =
+            process.env.GEMINI_API_KEY?.trim();
 
-            const imagePart = {
-                inlineData: {
-                    data: imageBuffer.toString("base64"),
-                    mimeType: mimeType
-                }
-            };
 
-            const model = genAI.getGenerativeModel({
-                model: "gemini-3.5-flash"
-            });
-
-            const verificationSchema = {
-                type: SchemaType.OBJECT,
-
-                properties: {
-
-                    is_platform: {
-                        type: SchemaType.BOOLEAN,
-                        description:
-                            `Does this image clearly show authentic UI for ${platform}?`
-                    },
-
-                    is_ai_generated: {
-                        type: SchemaType.BOOLEAN,
-                        description:
-                            "Are there obvious AI artifacts, warped text, or fake elements?"
-                    },
-
-                    has_premium_proof: {
-                        type: SchemaType.BOOLEAN,
-                        description:
-                            "Does the image contain visual proof of a paid account, premium subscription, paid game library, or a transaction history? (e.g., a 'Premium' badge, games that cost money, or an active subscription page)."
-                    },
-
-                    premium_evidence: {
-                        type: SchemaType.STRING,
-                        description:
-                            "List the specific text or UI elements in the image that prove this is a paid/premium account. If none, say 'None'."
-                    },
-
-                    reasoning: {
-                        type: SchemaType.STRING,
-                        description:
-                            "Briefly explain the final decision to pass or fail this image."
-                    }
-
-                },
-
-                required: [
-                    "is_platform",
-                    "is_ai_generated",
-                    "has_premium_proof",
-                    "premium_evidence",
-                    "reasoning"
-                ]
-            };
-
-            const prompt = `
-You are a strict fraud-prevention moderator verifying account screenshots for a platform-sharing service.
-
-The user claims this screenshot proves they have an active, paid account for the platform: "${platform}".
-
-Analyze the image and determine if it meets our security criteria:
-
-1. It must be a genuine screenshot of ${platform}.
-
-2. It must show proof of the HIGHEST or STANDARD premium tier.
-Free, budget, or "Lite" accounts are instantly rejected.
-
-CRITICAL TIER RULES:
-
-- Many platforms offer budget tiers that do not include full shareable benefits. These MUST BE REJECTED.
-
-- For Software (ChatGPT/OpenAI):
-  Reject "Go".
-  Accept "Plus" or "Pro".
-
-- For Xbox Game Pass:
-  Reject "Essential" or "Core".
-  Accept "Premium" or "Ultimate".
-
-- For YouTube:
-  Reject "Premium Lite".
-  Accept standard "Premium".
-
-- Catch-All Rule:
-  For ANY other platform, if the screenshot displays keywords like "Lite", "Basic", "Essential", "Starter", or "Go", you must reject it.
-
-Examples of valid proof:
-
-- An account details page clearly stating the full premium subscription name.
-- For gaming: Paid games in the library or a high account level.
-
-Look closely at the text, UI layout, and badges.
-Do not assume it is a paid, full-tier account unless you see direct evidence.
-`;
-
-            const aiResult = await model.generateContent({
-
-                contents: [
-                    {
-                        role: "user",
-                        parts: [
-                            {
-                                text: prompt
-                            },
-                            imagePart
-                        ]
-                    }
-                ],
-
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: verificationSchema
-                }
-
-            });
-
-            const rawText = aiResult.response.text();
-
-            verificationData = JSON.parse(rawText);
-
-            console.log(
-                "Moderation Result:",
-                verificationData
-            );
-
-            // --------------------------------------------------
-            // AI VERIFICATION FAILED
-            // --------------------------------------------------
-
-            if (
-                !verificationData.is_platform ||
-                verificationData.is_ai_generated ||
-                !verificationData.has_premium_proof
-            ) {
-
-                for (const file of localImagePaths) {
-
-                    if (fs.existsSync(file)) {
-                        fs.unlinkSync(file);
-                    }
-
-                }
-
-                await notificationmodel.create({
-                    user: userid,
-                    message:
-                        "Your proof image was rejected due to the following reason: " +
-                        verificationData.reasoning
-                });
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        `Verification failed: ${verificationData.reasoning} Please ensure your screenshot clearly shows your active subscription, paid library, or premium badges.`
-                });
-            }
-
-            // --------------------------------------------------
-            // AI VERIFICATION SUCCESS
-            // --------------------------------------------------
-
-            aiVerified = true;
-
-            console.log("AI verification successful.");
-
-        } catch (aiError) {
+        if (!geminiApiKey) {
 
             console.error(
-                "Gemini verification error:",
-                aiError
+                "GEMINI_API_KEY is missing on the server."
             );
 
-            // --------------------------------------------------
-            // GEMINI 503 FALLBACK
-            // --------------------------------------------------
+            aiVerificationSkipped = true;
 
-            if (aiError?.status === 503) {
+        } else {
 
-                console.log(
-                    "Gemini is temporarily unavailable (503)."
-                );
+            try {
 
-                console.log(
-                    "Skipping AI verification and saving request."
-                );
+                // -------------------------------------------------
+                // Create Gemini client
+                // -------------------------------------------------
 
-                aiVerified = false;
-                aiVerificationSkipped = true;
+                const genAI =
+                    new GoogleGenerativeAI(geminiApiKey);
 
-            } else {
 
-                for (const file of localImagePaths) {
+                const model =
+                    genAI.getGenerativeModel({
+                        model: "gemini-3.5-flash"
+                    });
 
-                    if (fs.existsSync(file)) {
-                        fs.unlinkSync(file);
+
+                // -------------------------------------------------
+                // First image is used for AI verification
+                // -------------------------------------------------
+
+                const imageToVerify =
+                    uploadedFiles[0];
+
+
+                const imagePath =
+                    imageToVerify?.path ||
+                    localImagePaths[0];
+
+
+                if (!imagePath) {
+
+                    throw new Error(
+                        "Uploaded image path is missing"
+                    );
+
+                }
+
+
+                // -------------------------------------------------
+                // Read image
+                // -------------------------------------------------
+
+                const imageBuffer =
+                    await fs.promises.readFile(imagePath);
+
+
+                // -------------------------------------------------
+                // Detect MIME type
+                // -------------------------------------------------
+
+                let mimeType =
+                    imageToVerify?.mimetype;
+
+
+                if (!mimeType) {
+
+                    const extension =
+                        path.extname(imagePath)
+                            .toLowerCase();
+
+
+                    if (extension === ".png") {
+
+                        mimeType = "image/png";
+
+                    } else if (extension === ".webp") {
+
+                        mimeType = "image/webp";
+
+                    } else if (
+                        extension === ".jpg" ||
+                        extension === ".jpeg"
+                    ) {
+
+                        mimeType = "image/jpeg";
+
+                    } else {
+
+                        throw new Error(
+                            `Unsupported image type: ${extension}`
+                        );
+
                     }
 
                 }
 
-                return res.status(500).json({
 
-                    success: false,
+                // -------------------------------------------------
+                // Image part
+                // -------------------------------------------------
 
-                    message:
-                        "AI verification service is currently unavailable. Please try again later."
-                });
-            }
-        }
+                const imagePart = {
 
-        // --------------------------------------------------
-        // UPLOAD IMAGES TO CLOUDINARY
-        // --------------------------------------------------
+                    inlineData: {
 
-        const imageUrls = await Promise.all(
+                        data:
+                            imageBuffer.toString("base64"),
 
-            localImagePaths.map(async (imagePath) => {
+                        mimeType
 
-                const { outputPath } =
-                    await convertToJpg(imagePath);
-
-                const result =
-                    await uploadtocloudinar(outputPath);
-
-                return {
-
-                    url: result.secure_url,
-
-                    publicId: result.public_id
+                    }
 
                 };
 
-            })
 
-        );
+                // -------------------------------------------------
+                // Gemini response schema
+                // -------------------------------------------------
 
-        // --------------------------------------------------
-        // UPDATE REQUEST
-        // --------------------------------------------------
+                const verificationSchema = {
 
-        request.planname = planname;
+                    type: SchemaType.OBJECT,
 
-        request.planprice = planprice;
+                    properties: {
 
-        request.planvalidityday = planvalidityday;
+                        is_platform: {
 
-        request.requister = userid;
+                            type: SchemaType.BOOLEAN,
 
-        request.proofimage = imageUrls;
+                            description:
+                                `Does this image clearly show authentic UI for the platform "${platformName}"?`
 
-        request.totalslots = totalslots;
+                        },
 
-        // --------------------------------------------------
-        // OPTIONAL AI STATUS
-        // --------------------------------------------------
 
-        request.aiVerified = aiVerified;
+                        is_ai_generated: {
+
+                            type: SchemaType.BOOLEAN,
+
+                            description:
+                                "Are there obvious AI-generated artifacts, warped text, impossible UI elements, or fake visual elements?"
+
+                        },
+
+
+                        has_premium_proof: {
+
+                            type: SchemaType.BOOLEAN,
+
+                            description:
+                                "Does the image contain direct visual evidence of a paid or premium subscription/account? Examples include a premium subscription name, paid library, transaction history, Premium badge, or other direct paid-account evidence."
+
+                        },
+
+
+                        premium_evidence: {
+
+                            type: SchemaType.STRING,
+
+                            description:
+                                "List the exact visible text, badge, subscription name, paid product, transaction, or UI element that supports the premium claim. If there is no evidence, return 'None'."
+
+                        },
+
+
+                        reasoning: {
+
+                            type: SchemaType.STRING,
+
+                            description:
+                                "Briefly explain why the image passed or failed verification."
+
+                        }
+
+                    },
+
+
+                    required: [
+                        "is_platform",
+                        "is_ai_generated",
+                        "has_premium_proof",
+                        "premium_evidence",
+                        "reasoning"
+                    ]
+
+                };
+
+
+                // =================================================
+                // PROMPT
+                // =================================================
+
+                const prompt = `
+
+You are a strict fraud-prevention moderator for a
+platform-sharing service.
+
+The user claims that this screenshot proves ownership
+of a paid account for:
+
+"${platformName}"
+
+Analyze the screenshot carefully.
+
+SECURITY REQUIREMENTS:
+
+1. The screenshot must genuinely belong to "${platformName}".
+
+2. The screenshot must contain direct visual evidence
+   that the account or product is paid/premium.
+
+3. Free tiers must NOT be accepted.
+
+4. Budget/Lite/basic tiers must NOT be accepted when
+   they do not represent the required premium level.
+
+SPECIAL RULES:
+
+For ChatGPT/OpenAI:
+- Reject Go.
+- Accept Plus or Pro.
+
+For Xbox Game Pass:
+- Reject Essential or Core.
+- Accept Premium or Ultimate.
+
+For YouTube:
+- Reject Premium Lite.
+- Accept standard Premium.
+
+GENERAL RULE:
+
+For other platforms, reject accounts that clearly
+show keywords such as:
+
+Lite
+Basic
+Essential
+Starter
+Go
+
+Do not guess.
+
+Only accept the screenshot when there is direct
+visual evidence.
+
+Check:
+
+- branding
+- UI layout
+- subscription name
+- premium badges
+- account information
+- paid products
+- transaction information
+- suspicious or AI-generated artifacts
+- warped text
+- inconsistent UI
+
+Return the result using the required JSON schema.
+`;
+
+
+                // =================================================
+                // SEND TO GEMINI
+                // =================================================
+
+                console.log(
+                    "Sending image to Gemini..."
+                );
+
+
+                const aiResult =
+                    await model.generateContent({
+
+                        contents: [
+
+                            {
+
+                                role: "user",
+
+                                parts: [
+
+                                    {
+                                        text: prompt
+                                    },
+
+                                    imagePart
+
+                                ]
+
+                            }
+
+                        ],
+
+
+                        generationConfig: {
+
+                            responseMimeType:
+                                "application/json",
+
+                            responseSchema:
+                                verificationSchema
+
+                        }
+
+                    });
+
+
+                // =================================================
+                // READ RESPONSE
+                // =================================================
+
+                const rawText =
+                    aiResult.response.text();
+
+
+                console.log(
+                    "Gemini raw response:",
+                    rawText
+                );
+
+
+                verificationData =
+                    JSON.parse(rawText);
+
+
+                console.log(
+                    "Gemini verification result:",
+                    verificationData
+                );
+
+
+                // =================================================
+                // CHECK RESULT
+                // =================================================
+
+                if (
+                    verificationData.is_platform !== true ||
+                    verificationData.is_ai_generated === true ||
+                    verificationData.has_premium_proof !== true
+                ) {
+
+                    console.log(
+                        "AI verification rejected proof."
+                    );
+
+
+                    const reason =
+                        verificationData.reasoning ||
+                        "The uploaded proof did not satisfy the verification requirements.";
+
+
+                    /*
+                     * Notification failure should not turn
+                     * the intended 400 response into a 500.
+                     */
+
+                    try {
+
+                        await notificationmodel.create({
+
+                            user: userid,
+
+                            message:
+                                "Your proof image was rejected: " +
+                                reason
+
+                        });
+
+                    } catch (notificationError) {
+
+                        console.error(
+                            "Rejection notification failed:",
+                            notificationError
+                        );
+
+                    }
+
+
+                    cleanupFiles();
+
+
+                    return res.status(400).json({
+
+                        success: false,
+
+                        message:
+                            `Verification failed: ${reason} Please upload a clear screenshot showing your active paid subscription or other valid premium proof.`
+
+                    });
+
+                }
+
+
+                // =================================================
+                // AI PASSED
+                // =================================================
+
+                aiVerified = true;
+
+                aiVerificationSkipped = false;
+
+
+                console.log(
+                    "AI verification successful."
+                );
+
+
+            } catch (aiError) {
+
+                /*
+                 * IMPORTANT:
+                 *
+                 * Gemini problems no longer make the whole
+                 * /platformsplit endpoint return 500.
+                 */
+
+                console.error(
+                    "========== GEMINI ERROR =========="
+                );
+
+                console.error(
+                    "message:",
+                    aiError?.message
+                );
+
+                console.error(
+                    "status:",
+                    aiError?.status
+                );
+
+                console.error(
+                    "code:",
+                    aiError?.code
+                );
+
+                console.error(
+                    "response:",
+                    aiError?.response
+                );
+
+                console.error(
+                    "error:",
+                    aiError
+                );
+
+                console.error(
+                    "=================================="
+                );
+
+
+                aiVerified = false;
+
+                aiVerificationSkipped = true;
+
+
+                console.log(
+                    "Gemini unavailable. Continuing without AI verification."
+                );
+
+            }
+
+        }
+
+
+        // =========================================================
+        // 10. UPLOAD PROOF IMAGES TO CLOUDINARY
+        // =========================================================
+
+        stage = "Cloudinary upload";
+
+
+        const imageUrls = [];
+
+
+        for (const imagePath of localImagePaths) {
+
+            console.log(
+                "Uploading to Cloudinary:",
+                imagePath
+            );
+
+
+            if (!fs.existsSync(imagePath)) {
+
+                throw new Error(
+                    `Uploaded file no longer exists: ${imagePath}`
+                );
+
+            }
+
+
+            const cloudinaryResult =
+                await uploadtocloudinar(imagePath);
+
+
+            if (!cloudinaryResult) {
+
+                throw new Error(
+                    "Cloudinary returned an empty result"
+                );
+
+            }
+
+
+            /*
+             * Your existing utility has been used in the
+             * project with both .url and secure_url.
+             *
+             * Support both formats.
+             */
+
+            const secureUrl =
+                cloudinaryResult.secure_url ||
+                cloudinaryResult.url;
+
+
+            const publicId =
+                cloudinaryResult.public_id ||
+                cloudinaryResult.publicId ||
+                null;
+
+
+            if (!secureUrl) {
+
+                throw new Error(
+                    "Cloudinary upload succeeded but no URL was returned"
+                );
+
+            }
+
+
+            imageUrls.push({
+
+                url: secureUrl,
+
+                publicId: publicId
+
+            });
+
+
+            console.log(
+                "Cloudinary upload successful:",
+                secureUrl
+            );
+
+        }
+
+
+        // =========================================================
+        // 11. CLEAN LOCAL FILES
+        // =========================================================
+
+        stage = "cleaning temporary files";
+
+        cleanupFiles();
+
+
+        // =========================================================
+        // 12. UPDATE REQUEST
+        // =========================================================
+
+        stage = "updating MongoDB request";
+
+
+        request.planname =
+            planname;
+
+
+        request.planprice =
+            planprice;
+
+
+        request.planvalidityday =
+            planvalidityday;
+
+
+        request.requister =
+            userid;
+
+
+        request.proofimage =
+            imageUrls;
+
+
+        request.totalslots =
+            totalslots;
+
+
+        // =========================================================
+        // 13. SAVE AI STATUS
+        // =========================================================
+
+        request.aiVerified =
+            aiVerified;
+
 
         request.aiVerificationSkipped =
             aiVerificationSkipped;
 
-        // --------------------------------------------------
-        // SAVE REQUEST
-        // --------------------------------------------------
 
-        const savedrequest = await request.save();
+        // =========================================================
+        // 14. SAVE REQUEST
+        // =========================================================
 
-        // --------------------------------------------------
-        // SUCCESS NOTIFICATION
-        // --------------------------------------------------
+        const savedrequest =
+            await request.save();
+
+
+        console.log(
+            "Request saved:",
+            savedrequest._id
+        );
+
+
+        // =========================================================
+        // 15. NOTIFICATION
+        // =========================================================
+
+        stage = "creating notification";
+
 
         let notificationMessage =
             "You have successfully created a new request";
+
 
         if (aiVerificationSkipped) {
 
@@ -730,51 +1400,116 @@ Do not assume it is a paid, full-tier account unless you see direct evidence.
 
         }
 
-        await notificationmodel.create({
 
-            user: userid,
+        /*
+         * Notification should not break the main request.
+         */
 
-            message: notificationMessage
+        try {
 
-        });
+            await notificationmodel.create({
 
-        // --------------------------------------------------
-        // RESPONSE
-        // --------------------------------------------------
+                user: userid,
+
+                message: notificationMessage
+
+            });
+
+        } catch (notificationError) {
+
+            console.error(
+                "Notification creation failed:",
+                notificationError
+            );
+
+        }
+
+
+        // =========================================================
+        // 16. SUCCESS RESPONSE
+        // =========================================================
+
+        console.log(
+            "========== PLATFORM SPLIT SUCCESS =========="
+        );
+
 
         return res.status(200).json({
 
             success: true,
 
-            message: aiVerificationSkipped
-                ? "Request submitted successfully. AI verification was temporarily unavailable."
-                : "Request submitted successfully",
+            message:
+                aiVerificationSkipped
+                    ? "Request submitted successfully. AI verification was temporarily unavailable."
+                    : "Request submitted successfully",
 
-            aiVerified: aiVerified,
+            aiVerified:
+
+                aiVerified,
 
             aiVerificationSkipped:
+
                 aiVerificationSkipped,
 
             savedrequest
 
         });
 
+
     } catch (error) {
 
+        // =========================================================
+        // GLOBAL ERROR HANDLER
+        // =========================================================
+
+        cleanupFiles();
+
+
         console.error(
-            "platformsplitrequest error:",
+            "========== PLATFORM SPLIT ERROR =========="
+        );
+
+        console.error(
+            "FAILED STAGE:",
+            stage
+        );
+
+        console.error(
+            "ERROR NAME:",
+            error?.name
+        );
+
+        console.error(
+            "ERROR MESSAGE:",
+            error?.message
+        );
+
+        console.error(
+            "ERROR CODE:",
+            error?.code
+        );
+
+        console.error(
+            "ERROR:",
             error
         );
+
+        console.error(
+            "==========================================="
+        );
+
 
         return res.status(500).json({
 
             success: false,
 
-            message: "Internal server error"
+            message:
+                `Failed while processing split request at stage: ${stage}`
 
         });
 
     }
+
 };
 export const selectplatform = async (req, res) => {
     try {
