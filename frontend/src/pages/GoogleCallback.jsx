@@ -31,6 +31,10 @@ export default function GoogleCallback() {
   const [warp, setWarp] = useState(false);
 
   async function submit(e) {
+    
+
+    console.log("userid from localStorage:", userid);
+    console.log("Google callback body:", body);
     e.preventDefault();
 
     if (check.state.status === "taken") {
@@ -42,7 +46,7 @@ export default function GoogleCallback() {
     }
 
     const userid = localStorage.getItem("userid");
-
+     console.log("userid from localStorage:", userid);
     if (!userid) {
       setStatus({
         state: "error",
