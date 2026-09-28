@@ -50,13 +50,13 @@ export const googleAuth = async (req, res) => {
         // COOKIE OPTIONS
         // --------------------------------------------------
 
-        const options = {
-            httpOnly: true,
-            secure: false,       // localhost
-            sameSite: "lax",
-            maxAge: 10 * 24 * 60 * 60 * 1000,
-            path: "/",
-        };
+     const options = {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    maxAge: 10 * 24 * 60 * 60 * 1000,
+    path: "/",
+};
 
         // --------------------------------------------------
         // CHECK EXISTING USER
@@ -144,7 +144,7 @@ export const googleAuth = async (req, res) => {
 
 export const adduserdetails = async (req, res) => {
     try {
-        const { userid, profilename, phoneno, upiid } = req.body;
+        const { profilename, phoneno, upiid } = req.body;
 
         if (!profilename) {
             return res.status(400).json({
@@ -153,10 +153,12 @@ export const adduserdetails = async (req, res) => {
             });
         }
 
+        const userid = req.userId;
+
         if (!userid) {
             return res.status(401).json({
                 success: false,
-                message: "User ID not found"
+                message: "Authentication required"
             });
         }
 

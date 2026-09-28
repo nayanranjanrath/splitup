@@ -10,11 +10,6 @@ import { addUserDetails } from "../lib/api.js";
 
 import { useProfilenameCheck } from "../lib/useProfilenameCheck.js";
 
-/**
- * New Google users land here to complete their profile.
- * User ID is read from localStorage and sent to the backend.
- */
-
 export default function GoogleCallback() {
   const navigate = useNavigate();
 
@@ -31,10 +26,6 @@ export default function GoogleCallback() {
   const [warp, setWarp] = useState(false);
 
   async function submit(e) {
-    
-
-    console.log("userid from localStorage:", userid);
-    console.log("Google callback body:", body);
     e.preventDefault();
 
     if (check.state.status === "taken") {
@@ -45,26 +36,15 @@ export default function GoogleCallback() {
       return;
     }
 
-    const userid = localStorage.getItem("userid");
-     console.log("userid from localStorage:", userid);
-    if (!userid) {
-      setStatus({
-        state: "error",
-        message: "User ID not found. Please sign in with Google again.",
-      });
-      return;
-    }
-
     setWarp(true);
 
     setStatus({
-      state: "idle",
+      state: "loading",
       message: "",
     });
 
     try {
       const body = {
-        userid,
         profilename: check.value.trim(),
       };
 
@@ -81,6 +61,7 @@ export default function GoogleCallback() {
       navigate("/home", {
         replace: true,
       });
+
     } catch (err) {
       setWarp(false);
 
@@ -148,7 +129,11 @@ export default function GoogleCallback() {
           className="pill"
           disabled={status.state === "loading"}
         >
-          <span>Finish setup</span>
+          <span>
+            {status.state === "loading"
+              ? "Saving..."
+              : "Finish setup"}
+          </span>
         </button>
       </form>
 

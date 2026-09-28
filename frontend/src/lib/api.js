@@ -239,21 +239,18 @@ export const verifyUser = (email, otp) =>
   });
 
 export const addUserDetails = ({
-    userid,
-    profilename,
-    phoneno,
-    upiid,
+  profilename,
+  phoneno,
+  upiid,
 }) =>
-    apiFetch("/adduserdetails", {
-        method: "POST",
-        body: {
-            userid,
-            profilename,
-            phoneno,
-            upiid,
-        },
-    });
-
+  apiFetch("/adduserdetails", {
+    method: "POST",
+    body: {
+      profilename,
+      phoneno,
+      upiid,
+    },
+  });
 export async function availableProfilename(name) {
   try {
     const data = await apiFetch(
