@@ -107,7 +107,7 @@ export const registeruser = async (req, res) => {
         //  if (fs.existsSync(avatarlocalpath)) {
         //     fs.unlinkSync(avatarlocalpath);
         // }
-        return res.status(200).json({ success: true, message: "otp send successfully", otp })
+        return res.status(200).json({ success: true, message: "otp send successfully"})
 
 
     }
