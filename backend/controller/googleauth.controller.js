@@ -144,7 +144,7 @@ export const googleAuth = async (req, res) => {
 
 export const adduserdetails = async (req, res) => {
     try {
-        const { profilename, phoneno, upiid } = req.body;
+        const { userid, profilename, phoneno, upiid } = req.body;
 
         if (!profilename) {
             return res.status(400).json({
@@ -152,8 +152,6 @@ export const adduserdetails = async (req, res) => {
                 message: "Profile name is required"
             });
         }
-
-        const userid = req.userId;
 
         if (!userid) {
             return res.status(401).json({
