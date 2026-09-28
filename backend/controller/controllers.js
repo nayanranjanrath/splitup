@@ -66,12 +66,35 @@ export const registeruser = async (req, res) => {
         if (!profilename || !phoneno || !email || !password) {
             return res.status(400).json({ success: false, message: "All fields are required" })
         }
-        const existinguser = await usermodel.findOne(
-            { $or: [{ email: email }, { profilename: profilename }] }
-        )
+        const existinguser = await usermodel.findOne({
+            $or: [
+                { email: email },
+                { profilename: profilename },
+                { phoneno: phoneno }
+            ]
+        });
 
         if (existinguser) {
-            return res.status(400).json({ success: false, message: "User already exists" })
+            if (existinguser.email === email) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Email already exists"
+                });
+            }
+
+            if (existinguser.profilename === profilename) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Username already exists"
+                });
+            }
+
+            if (existinguser.phoneno === phoneno) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Phone number already exists"
+                });
+            }
         }
 
         let avatarlocalpath = req.file?.path;
@@ -107,7 +130,7 @@ export const registeruser = async (req, res) => {
         //  if (fs.existsSync(avatarlocalpath)) {
         //     fs.unlinkSync(avatarlocalpath);
         // }
-        return res.status(200).json({ success: true, message: "otp send successfully"})
+        return res.status(200).json({ success: true, message: "otp send successfully" })
 
 
     }
