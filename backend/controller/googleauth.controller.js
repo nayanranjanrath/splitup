@@ -148,39 +148,71 @@ export const adduserdetails = async (req, res) => {
 
         if (!profilename) {
             return res.status(400).json({
-                message: "Profile name and user ID are required"
+                success: false,
+                message: "Profile name is required"
             });
         }
 
         const userid = req.userId;
 
+        if (!userid) {
+            return res.status(401).json({
+                success: false,
+                message: "User ID not found"
+            });
+        }
+
         const existingUser = await usermodel.findById(userid);
 
         if (!existingUser) {
             return res.status(404).json({
+                success: false,
                 message: "User not found"
             });
         }
 
-        existingUser.profilename = profilename;
-        existingUser.phoneno = phoneno;
-        existingUser.upiid = upiid;
+        existingUser.profilename = profilename.trim();
+
+        if (phoneno) {
+            existingUser.phoneno = phoneno;
+        }
+
+        if (upiid) {
+            existingUser.upiid = upiid.trim();
+        }
 
         await existingUser.save();
 
         return res.status(200).json({
+            success: true,
             message: "User details added successfully"
         });
 
     } catch (error) {
-        console.error(error);
+        console.error("adduserdetails error:", error);
 
-        res.status(500).json({
+        if (error.code === 11000) {
+            if (error.keyPattern?.phoneno) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Phone number already exists"
+                });
+            }
+
+            if (error.keyPattern?.profilename) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Profile name already exists"
+                });
+            }
+        }
+
+        return res.status(500).json({
+            success: false,
             message: "Internal server error"
         });
     }
 };
-
 export const avilibleprofilename = async (req, res) => {
     try {
         const { profilename } = req.params;
