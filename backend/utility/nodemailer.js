@@ -1,238 +1,164 @@
-import { Resend } from "resend";
+import { BrevoClient } from "@getbrevo/brevo";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const brevo = new BrevoClient({
+    apiKey: process.env.BREVO_API_KEY,
+});
 
 export const sendOTPEmail = async (email, otp) => {
-    console.log("reached resend mailer");
+    console.log("reached Brevo mailer");
 
-    const { data, error } = await resend.emails.send({
-        from: "SplitUp <onboarding@resend.dev>",
-        to: [email],
-        subject: "Your SplitUp Verification Code",
+    try {
+        const result = await brevo.transactionalEmails.sendTransacEmail({
+            sender: {
+                name: "SplitUp",
+                email: "splitup55@gmail.com",
+            },
 
-        html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <title>SplitUp OTP Verification</title>
-        </head>
+            to: [
+                {
+                    email: email,
+                },
+            ],
 
-        <body style="
-            margin: 0;
-            padding: 0;
-            background-color: #f4f7fb;
-            font-family: Arial, Helvetica, sans-serif;
-        ">
+            subject: "Your SplitUp Verification Code",
 
-            <table
-                width="100%"
-                cellpadding="0"
-                cellspacing="0"
-                border="0"
-                style="background-color: #f4f7fb; padding: 40px 15px;"
-            >
-                <tr>
-                    <td align="center">
+            htmlContent: `
+                <!DOCTYPE html>
+                <html>
+                <body style="
+                    margin: 0;
+                    padding: 30px;
+                    background-color: #f4f7fb;
+                    font-family: Arial, Helvetica, sans-serif;
+                ">
 
-                        <table
-                            width="100%"
-                            cellpadding="0"
-                            cellspacing="0"
-                            border="0"
-                            style="
-                                max-width: 520px;
-                                background-color: #ffffff;
-                                border-radius: 12px;
-                                overflow: hidden;
-                            "
-                        >
+                    <div style="
+                        max-width: 520px;
+                        margin: auto;
+                        background: white;
+                        border-radius: 12px;
+                        overflow: hidden;
+                    ">
 
-                            <!-- Header -->
-                            <tr>
-                                <td style="
-                                    background-color: #142247;
-                                    padding: 28px 30px;
-                                    text-align: center;
+                        <div style="
+                            background: #142247;
+                            padding: 30px;
+                            text-align: center;
+                        ">
+                            <h1 style="
+                                margin: 0;
+                                color: white;
+                            ">
+                                SplitUp
+                            </h1>
+
+                            <p style="
+                                color: #cbd5e1;
+                                margin: 8px 0 0;
+                            ">
+                                Subscription Sharing Made Simple
+                            </p>
+                        </div>
+
+                        <div style="padding: 35px;">
+
+                            <h2 style="
+                                color: #1e293b;
+                                margin-top: 0;
+                            ">
+                                Verify your email
+                            </h2>
+
+                            <p style="
+                                color: #64748b;
+                                line-height: 1.6;
+                            ">
+                                Thanks for signing up for SplitUp.
+                                Use the verification code below to
+                                complete your registration.
+                            </p>
+
+                            <div style="
+                                margin: 25px 0;
+                                padding: 20px;
+                                text-align: center;
+                                background: #f1f5f9;
+                                border-radius: 10px;
+                                border: 1px solid #dbe3ee;
+                            ">
+
+                                <p style="
+                                    margin: 0 0 10px;
+                                    color: #64748b;
+                                    font-size: 12px;
+                                    letter-spacing: 1.5px;
                                 ">
-                                    <h1 style="
-                                        margin: 0;
-                                        color: #ffffff;
-                                        font-size: 28px;
-                                        letter-spacing: 1px;
-                                    ">
-                                        SplitUp
-                                    </h1>
+                                    VERIFICATION CODE
+                                </p>
 
-                                    <p style="
-                                        margin: 8px 0 0;
-                                        color: #cbd5e1;
-                                        font-size: 14px;
-                                    ">
-                                        Subscription Sharing Made Simple
-                                    </p>
-                                </td>
-                            </tr>
-
-                            <!-- Content -->
-                            <tr>
-                                <td style="padding: 35px 35px 25px;">
-
-                                    <h2 style="
-                                        margin: 0 0 15px;
-                                        color: #1e293b;
-                                        font-size: 22px;
-                                    ">
-                                        Verify your email
-                                    </h2>
-
-                                    <p style="
-                                        margin: 0 0 20px;
-                                        color: #64748b;
-                                        font-size: 15px;
-                                        line-height: 1.6;
-                                    ">
-                                        Thanks for signing up for SplitUp!
-                                        Please use the verification code below
-                                        to complete your registration.
-                                    </p>
-
-                                    <!-- OTP Box -->
-                                    <table
-                                        width="100%"
-                                        cellpadding="0"
-                                        cellspacing="0"
-                                        border="0"
-                                    >
-                                        <tr>
-                                            <td align="center">
-
-                                                <div style="
-                                                    background-color: #f1f5f9;
-                                                    border: 1px solid #dbe3ee;
-                                                    border-radius: 10px;
-                                                    padding: 20px 15px;
-                                                    margin: 10px 0 20px;
-                                                ">
-
-                                                    <p style="
-                                                        margin: 0 0 8px;
-                                                        color: #64748b;
-                                                        font-size: 12px;
-                                                        text-transform: uppercase;
-                                                        letter-spacing: 1.5px;
-                                                    ">
-                                                        Verification Code
-                                                    </p>
-
-                                                    <div style="
-                                                        color: #142247;
-                                                        font-size: 34px;
-                                                        font-weight: bold;
-                                                        letter-spacing: 8px;
-                                                        line-height: 1.3;
-                                                    ">
-                                                        ${otp}
-                                                    </div>
-
-                                                    <p style="
-                                                        margin: 12px 0 0;
-                                                        color: #94a3b8;
-                                                        font-size: 12px;
-                                                    ">
-                                                        Select and copy this code
-                                                    </p>
-
-                                                </div>
-
-                                            </td>
-                                        </tr>
-                                    </table>
-
-                                    <!-- Expiration -->
-                                    <p style="
-                                        margin: 0 0 12px;
-                                        color: #475569;
-                                        font-size: 14px;
-                                        line-height: 1.6;
-                                    ">
-                                        This verification code will expire in
-                                        <strong>5 minutes</strong>.
-                                    </p>
-
-                                    <p style="
-                                        margin: 0;
-                                        color: #64748b;
-                                        font-size: 14px;
-                                        line-height: 1.6;
-                                    ">
-                                        If you did not request this code, you can
-                                        safely ignore this email.
-                                    </p>
-
-                                </td>
-                            </tr>
-
-                            <!-- Security Notice -->
-                            <tr>
-                                <td style="
-                                    padding: 0 35px 30px;
+                                <div style="
+                                    font-size: 34px;
+                                    font-weight: bold;
+                                    letter-spacing: 8px;
+                                    color: #142247;
                                 ">
+                                    ${otp}
+                                </div>
 
-                                    <div style="
-                                        background-color: #fff7ed;
-                                        border-left: 4px solid #f59e0b;
-                                        padding: 12px 15px;
-                                        border-radius: 6px;
-                                    ">
-                                        <p style="
-                                            margin: 0;
-                                            color: #9a3412;
-                                            font-size: 13px;
-                                            line-height: 1.5;
-                                        ">
-                                            <strong>Security notice:</strong>
-                                            Never share this verification code
-                                            with anyone, including SplitUp support.
-                                        </p>
-                                    </div>
-
-                                </td>
-                            </tr>
-
-                            <!-- Footer -->
-                            <tr>
-                                <td style="
-                                    border-top: 1px solid #e2e8f0;
-                                    padding: 22px 30px;
-                                    text-align: center;
+                                <p style="
+                                    margin: 12px 0 0;
+                                    color: #94a3b8;
+                                    font-size: 12px;
                                 ">
+                                    Select and copy this code
+                                </p>
 
-                                    <p style="
-                                        margin: 0;
-                                        color: #94a3b8;
-                                        font-size: 12px;
-                                    ">
-                                        © ${new Date().getFullYear()} SplitUp.
-                                        All rights reserved.
-                                    </p>
+                            </div>
 
-                                </td>
-                            </tr>
+                            <p style="
+                                color: #475569;
+                                line-height: 1.6;
+                            ">
+                                This code will expire in
+                                <strong>5 minutes</strong>.
+                            </p>
 
-                        </table>
+                            <div style="
+                                margin-top: 20px;
+                                padding: 12px 15px;
+                                background: #fff7ed;
+                                border-left: 4px solid #f59e0b;
+                                border-radius: 6px;
+                            ">
+                                <p style="
+                                    margin: 0;
+                                    color: #9a3412;
+                                    font-size: 13px;
+                                ">
+                                    <strong>Security notice:</strong>
+                                    Never share this verification code
+                                    with anyone.
+                                </p>
+                            </div>
 
-                    </td>
-                </tr>
-            </table>
+                            <p style="
+                                margin-top: 30px;
+                                color: #94a3b8;
+                                font-size: 12px;
+                            ">
+                                If you did not request this code,
+                                you can safely ignore this email.
+                            </p>
 
-        </body>
-        </html>
-        `,
+                        </div>
 
-        // Fallback for email clients that don't support HTML
-        text: `
+                    </div>
+
+                </body>
+                </html>
+            `,
+
+            text: `
 SplitUp - Email Verification
 
 Your verification code is:
@@ -243,118 +169,86 @@ This code expires in 5 minutes.
 
 If you did not request this code, you can safely ignore this email.
 
-Security notice:
 Never share this verification code with anyone.
-        `,
-    });
+            `,
+        });
 
-    if (error) {
-        console.error("Resend error:", error);
-        throw new Error("Failed to send OTP email");
+        console.log("Email sent successfully:", result);
+
+        return result;
+
+    } catch (error) {
+        console.error("Brevo error:", error);
+        throw error;
     }
-
-    console.log("Email sent successfully:", data);
 };
 
 
 export const reportusermail = async (email, msg) => {
-    console.log("reached resend mailer");
+    console.log("reached Brevo mailer");
 
-    const { data, error } = await resend.emails.send({
-        from: "SplitUp <onboarding@resend.dev>",
-        to: [email],
-        subject: "SplitUp - Report Response",
+    try {
+        const result = await brevo.transactionalEmails.sendTransacEmail({
+            sender: {
+                name: "SplitUp",
+                email: "splitup55@gmail.com",
+            },
 
-        html: `
-        <!DOCTYPE html>
-        <html>
-        <body style="
-            margin: 0;
-            padding: 40px 15px;
-            background-color: #f4f7fb;
-            font-family: Arial, Helvetica, sans-serif;
-        ">
+            to: [
+                {
+                    email: email,
+                },
+            ],
 
-            <table
-                width="100%"
-                cellpadding="0"
-                cellspacing="0"
-                border="0"
-            >
-                <tr>
-                    <td align="center">
+            subject: "SplitUp - Report Response",
 
-                        <table
-                            width="100%"
-                            cellpadding="0"
-                            cellspacing="0"
-                            border="0"
-                            style="
-                                max-width: 520px;
-                                background-color: #ffffff;
-                                border-radius: 12px;
-                                padding: 35px;
-                            "
-                        >
+            htmlContent: `
+                <div style="
+                    font-family: Arial, Helvetica, sans-serif;
+                    max-width: 520px;
+                    margin: auto;
+                    padding: 30px;
+                ">
 
-                            <tr>
-                                <td>
+                    <h1 style="color: #142247;">
+                        SplitUp
+                    </h1>
 
-                                    <h1 style="
-                                        margin: 0 0 20px;
-                                        color: #142247;
-                                    ">
-                                        SplitUp
-                                    </h1>
+                    <h2>
+                        Report Response
+                    </h2>
 
-                                    <h2 style="
-                                        margin: 0 0 15px;
-                                        color: #1e293b;
-                                    ">
-                                        Report Response
-                                    </h2>
+                    <p style="
+                        color: #475569;
+                        line-height: 1.6;
+                    ">
+                        ${msg}
+                    </p>
 
-                                    <p style="
-                                        color: #475569;
-                                        font-size: 15px;
-                                        line-height: 1.6;
-                                    ">
-                                        ${msg}
-                                    </p>
+                    <p style="
+                        margin-top: 30px;
+                        color: #94a3b8;
+                        font-size: 12px;
+                    ">
+                        © ${new Date().getFullYear()} SplitUp
+                    </p>
 
-                                    <p style="
-                                        margin-top: 30px;
-                                        color: #94a3b8;
-                                        font-size: 12px;
-                                    ">
-                                        © ${new Date().getFullYear()} SplitUp.
-                                        All rights reserved.
-                                    </p>
+                </div>
+            `,
 
-                                </td>
-                            </tr>
-
-                        </table>
-
-                    </td>
-                </tr>
-            </table>
-
-        </body>
-        </html>
-        `,
-
-        text: `
+            text: `
 SplitUp - Report Response
 
 ${msg}
-        `,
-    });
+            `,
+        });
 
-    if (error) {
-        console.error("Resend error:", error);
-        throw new Error("Failed to send report email");
+        console.log("Email sent successfully:", result);
+
+        return result;
+
+    } catch (error) {
+        console.error("Brevo error:", error);
+        throw error;
     }
-
-    console.log("Email sent successfully:", data);
 };

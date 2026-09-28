@@ -5,6 +5,7 @@
     "": {
       "name": "splitup",
       "dependencies": {
+        "@getbrevo/brevo": "^6.0.3",
         "@google/generative-ai": "^0.24.1",
         "bcrypt": "^6.0.0",
         "cloudinary": "^2.10.0",
@@ -33,6 +34,8 @@
   },
   "packages": {
     "@emnapi/runtime": ["@emnapi/runtime@1.11.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-vgj7R3y3Wgx24IQaGPA/R6YFXLHVMOZ0uVEyIQPaWs+rd1AzfEMXlAC22FYwO1XkKR6NPsq7mUandH8oIRdZFw=="],
+
+    "@getbrevo/brevo": ["@getbrevo/brevo@6.0.3", "", {}, "sha512-yWBLKoHC8P5HLZ8z6iRuqDYLpCRKPTUETnZOLZzNDWGFYL78y4SHOTxQVrKH5ROX7f4q+SQ19LD3GWtJlIuNXA=="],
 
     "@google/generative-ai": ["@google/generative-ai@0.24.1", "", {}, "sha512-MqO+MLfM6kjxcKoy0p1wRzG3b4ZZXtPI+z2IE26UogS2Cm/XHO+7gGRBh6gcJsOiIVoH93UwKvW4HdgiOZCy9Q=="],
 
