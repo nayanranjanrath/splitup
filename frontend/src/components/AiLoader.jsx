@@ -1,39 +1,20 @@
-import { useEffect, useRef } from "react";
-import { AI_SVG, AI_SCRIPT } from "./ailoader-assets.js";
+import "./AiLoader.css";
 
-/**
- * AI-verification loader:
- * Robot shuttling the proof image between folders
- * with a progress bar.
- */
 export default function AiLoader({
-  label = "AI is verifying your proof images…",
+  label = "AI is verifying your proof images",
 }) {
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const root = ref.current;
-
-    if (!root) return;
-
-    try {
-      // Run the animation inside this specific loader instance.
-      const run = new Function(AI_SCRIPT);
-      run(root);
-    } catch (error) {
-      console.error("AI loader animation failed:", error);
-    }
-  }, []);
-
   return (
-    <div className="ai-loader" role="status" aria-live="polite">
-      <div
-        className="ai-loader-svg"
-        ref={ref}
-        dangerouslySetInnerHTML={{ __html: AI_SVG }}
-      />
+    <div
+      className="ai-loader"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="ai-loader-spinner" aria-hidden="true"></div>
 
-      <p className="ai-loader-label">{label}</p>
+      <p className="ai-loader-label">
+        {label}
+        <span className="ai-loader-dots" aria-hidden="true"></span>
+      </p>
     </div>
   );
 }
