@@ -144,6 +144,7 @@ export const googleAuth = async (req, res) => {
 
 export const adduserdetails = async (req, res) => {
     try {
+        console.log("adduserdetails request body:", req.body);
         const { profilename, phoneno, upiid } = req.body;
 
         if (!profilename) {

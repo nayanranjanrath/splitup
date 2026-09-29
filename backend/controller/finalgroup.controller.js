@@ -647,19 +647,24 @@ export const acceptdeleterequest = async (req, res) => {
     const session = await mongoose.startSession();
 
     try {
-
         await session.withTransaction(async () => {
-
             const { groupid } = req.body;
 
             if (!groupid) {
-                return res.status(404).json({
+                return res.status(400).json({
                     success: false,
-                    message: "all the fields are required"
+                    message: "Group ID is required"
                 });
             }
 
             const userid = req.userId;
+
+            if (!userid) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Authentication required"
+                });
+            }
 
             const group = await finalChatModel
                 .findById(groupid)
@@ -669,25 +674,18 @@ export const acceptdeleterequest = async (req, res) => {
             if (!group) {
                 return res.status(404).json({
                     success: false,
-                    message: "no such group found"
+                    message: "No such group found"
                 });
             }
 
-            if (group.admin.toString() === userid.toString()) {
-                return res.status(403).json({
-                    success: false,
-                    message: "you created the request now wait for others to approve this"
-                });
-            }
-
-            const validmember = group.members.some(member =>
+            const validmember = group.members.some((member) =>
                 member.equals(userid)
             );
 
             if (!validmember) {
-                return res.status(404).json({
+                return res.status(403).json({
                     success: false,
-                    message: "you are not a member of this group"
+                    message: "You are not a member of this group"
                 });
             }
 
@@ -698,25 +696,17 @@ export const acceptdeleterequest = async (req, res) => {
             if (!deleterequest) {
                 return res.status(404).json({
                     success: false,
-                    message: "no such request found"
+                    message: "No such request found"
                 });
             }
 
-            if (
-                deleterequest.agreedmembers.some(member =>
-                    member.equals(userid)
-                )
-            ) {
-                return res.status(404).json({
-                    success: false,
-                    message: "you already approved the request"
-                });
-            }
+            /*
+            ==================================================
+            SINGLE-MEMBER GROUP
+            ==================================================
+            */
 
-            deleterequest.agreedmembers.push(userid);
-
-            if (deleterequest.agreedmembers.length >= group.members.length) {
-
+            if (group.members.length === 1) {
                 const plans = await planmodel
                     .find({ finalchatid: groupid })
                     .session(session);
@@ -724,7 +714,7 @@ export const acceptdeleterequest = async (req, res) => {
                 await platformsignindetailsmodel.deleteMany(
                     {
                         planname: {
-                            $in: plans.map(plan => plan._id)
+                            $in: plans.map((plan) => plan._id)
                         }
                     },
                     { session }
@@ -737,50 +727,137 @@ export const acceptdeleterequest = async (req, res) => {
                     { session }
                 );
 
-                await deleterequest.deleteOne({ session });
-
-                await Promise.all(
-                    group.members.map(member =>
-                        notificationmodel.create({
-                            user: member,
-                            message: `delete request of group: ${group.groupname} is approved by everyone so we are removbing the group and its related data `,
-                        })
-                    )
+                await notificationmodel.create(
+                    group.members.map((member) => ({
+                        user: member,
+                        message: `Delete request for group "${group.groupname}" was approved. The group and its related data have been removed.`
+                    })),
+                    { session }
                 );
 
-                await group.deleteOne({ session });
+                await deletefinalgrouprequest.deleteOne(
+                    { _id: deleterequest._id },
+                    { session }
+                );
+
+                await finalChatModel.deleteOne(
+                    { _id: group._id },
+                    { session }
+                );
 
                 return res.status(200).json({
                     success: true,
-                    message: "group deleted successfully"
+                    message: "Group deleted successfully"
                 });
             }
+
+            /*
+            ==================================================
+            MORE THAN ONE MEMBER
+            ==================================================
+            */
+
+            // Admin created the request, so admin cannot approve it
+            if (group.admin.toString() === userid.toString()) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You created the request. Wait for the other members to approve it."
+                });
+            }
+
+            if (
+                deleterequest.agreedmembers.some((member) =>
+                    member.equals(userid)
+                )
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: "You already approved the request"
+                });
+            }
+
+            deleterequest.agreedmembers.push(userid);
+
+            /*
+            ==================================================
+            EVERYONE APPROVED
+            ==================================================
+            */
+
+            if (
+                deleterequest.agreedmembers.length >=
+                group.members.length
+            ) {
+                const plans = await planmodel
+                    .find({ finalchatid: groupid })
+                    .session(session);
+
+                await platformsignindetailsmodel.deleteMany(
+                    {
+                        planname: {
+                            $in: plans.map((plan) => plan._id)
+                        }
+                    },
+                    { session }
+                );
+
+                await planmodel.deleteMany(
+                    {
+                        finalchatid: groupid
+                    },
+                    { session }
+                );
+
+                await notificationmodel.create(
+                    group.members.map((member) => ({
+                        user: member,
+                        message: `Delete request for group "${group.groupname}" was approved by everyone. The group and its related data have been removed.`
+                    })),
+                    { session }
+                );
+
+                await deletefinalgrouprequest.deleteOne(
+                    { _id: deleterequest._id },
+                    { session }
+                );
+
+                await finalChatModel.deleteOne(
+                    { _id: group._id },
+                    { session }
+                );
+
+                return res.status(200).json({
+                    success: true,
+                    message: "Group deleted successfully"
+                });
+            }
+
+            /*
+            ==================================================
+            REQUEST ACCEPTED BUT WAITING FOR OTHERS
+            ==================================================
+            */
 
             await deleterequest.save({ session });
 
             return res.status(200).json({
                 success: true,
-                message: "group delete request accepted successfully"
+                message: "Group delete request accepted successfully"
             });
-
         });
 
     } catch (error) {
-
-        console.log(error);
+        console.error("acceptdeleterequest error:", error);
 
         return res.status(500).json({
             success: false,
-            message: "internal server error"
+            message: "Internal server error"
         });
 
     } finally {
-
         await session.endSession();
-
     }
-
-}
+};
 
 
 export const rejectdeleterequest = async (req, res) => {
