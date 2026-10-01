@@ -173,7 +173,13 @@ export const adduserdetails = async (req, res) => {
         }
 
         existingUser.profilename = profilename.trim();
-
+        const existingphonenumber = await usermodel.findOne({phoneno:phoneno})
+        if(existingphonenumber){
+            return res.status(400).json({
+            success: false,
+            message: "this phone number is alredy registered with platform please use another number"
+        });
+        }
         if (phoneno) {
             existingUser.phoneno = phoneno;
         }

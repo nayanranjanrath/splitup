@@ -188,6 +188,20 @@ export const verifyuser = async (req, res) => {
 
             userdata.avatar = cloudinaryresult.url
         }
+        const existingUser = await usermodel.findOne({
+            $or: [
+                { email: userdata.email },
+                { profilename: userdata.profilename },
+                { phoneno: userdata.phoneno }
+            ]
+        });
+
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: "Email, profile name, or phone number is already in use"
+            });
+        }
         const usersave = await usermodel.create(userdata)
         console.log("user", usersave)
         await redis.del(`user:${useremail}`);
