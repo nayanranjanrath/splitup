@@ -7196,3 +7196,18 @@ img.req-logo {
     width: 100%;
   }
 }
+
+
+@media (max-width: 640px) {
+  .notif-pop {
+    position: fixed;
+    top: 64px;           
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: calc(100dvh - 84px);
+  }
+  .notif-list {
+    max-height: calc(100dvh - 160px);
+  }
+}
